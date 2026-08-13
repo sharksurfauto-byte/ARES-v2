@@ -25,6 +25,7 @@ reports/
 
 # Local temporary files & PRD docs
 temp.py
+input.txt
 ARESv2 PRD
 *.log
 
