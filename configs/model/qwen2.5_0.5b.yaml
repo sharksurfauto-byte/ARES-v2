@@ -1,0 +1,8 @@
+model:
+  name_or_path: "Qwen/Qwen2.5-0.5B"
+  revision: "main"
+  torch_dtype: "bfloat16"
+  device_map: "auto"
+  max_position_embeddings: 2048
+  trust_remote_code: false
+  use_cache: true
