@@ -9,6 +9,20 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
+# Safely handle preinstalled incompatible torchao versions on environments like Kaggle
+try:
+    import peft.import_utils
+    if hasattr(peft.import_utils, "is_torchao_available"):
+        _orig_torchao_check = peft.import_utils.is_torchao_available
+        def _safe_torchao_check() -> bool:
+            try:
+                return _orig_torchao_check()
+            except ImportError:
+                return False
+        peft.import_utils.is_torchao_available = _safe_torchao_check
+except Exception:
+    pass
+
 try:
     from peft import LoraConfig, PeftModel, TaskType, get_peft_model
     PEFT_AVAILABLE = True
