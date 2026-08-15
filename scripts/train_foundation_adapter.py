@@ -7,6 +7,9 @@ from pathlib import Path
 # Add src to path if running directly
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+# Mask preinstalled incompatible torchao version on Kaggle to prevent PEFT import errors
+sys.modules["torchao"] = None
+
 import torch
 from ares.adaptation import (
     DomainSample,
