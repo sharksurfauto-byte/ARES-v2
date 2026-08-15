@@ -1,0 +1,37 @@
+domain_mixture:
+  seed: 42
+  max_seq_length: 512
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+
+  domains:
+    general:
+      weight: 0.30
+      dataset_name: "wikitext"
+      dataset_config: "wikitext-2-raw-v1"
+      input_key: "text"
+      prompt_prefix: "General Knowledge: "
+
+    math:
+      weight: 0.30
+      dataset_name: "gsm8k"
+      dataset_config: "main"
+      input_key: "question"
+      target_key: "answer"
+      prompt_prefix: "Solve the math problem step-by-step: "
+
+    code:
+      weight: 0.25
+      dataset_name: "mbpp"
+      dataset_config: "sanitized"
+      input_key: "prompt"
+      target_key: "code"
+      prompt_prefix: "Write Python code for the following task: "
+
+    science:
+      weight: 0.15
+      dataset_name: "ai2_arc"
+      dataset_config: "ARC-Easy"
+      input_key: "question"
+      prompt_prefix: "Science Question: "

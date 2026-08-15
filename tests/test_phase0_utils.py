@@ -33,7 +33,7 @@ def test_load_config():
     cfg = load_config(config_path)
     assert isinstance(cfg, ExperimentConfig)
     assert cfg.experiment_name == "smoke_test"
-    assert cfg.model.name_or_path == "Qwen/Qwen2.5-0.5B"
+    assert cfg.model.name_or_path == "Qwen/Qwen2.5-7B"
     assert cfg.reliability.grm_enabled is True
     assert cfg.training.use_ddp is True
 
