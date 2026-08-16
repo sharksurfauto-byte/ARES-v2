@@ -244,19 +244,13 @@ class ARESInferenceEngine:
             expert_names = ["E0_general", "E1_math", "E2_code", "E3_science"]
             for expert_name in expert_names:
                 expert_path = Path(expert_checkpoint_dir) / expert_name
-                adapter_bin = expert_path / "adapter_model.bin"
-                adapter_safetensors = expert_path / "adapter_model.safetensors"
+                nested_path = expert_path / expert_name
+                target_path = nested_path if (nested_path / "adapter_config.json").exists() else expert_path
 
-                if adapter_bin.exists():
-                    print(f"  Loading {expert_name} from {adapter_bin}...")
-                    self.expert_manager.peft_model.load_adapter(
-                        str(expert_path), adapter_name=expert_name
-                    )
-                elif adapter_safetensors.exists():
-                    print(f"  Loading {expert_name} from {adapter_safetensors}...")
-                    self.expert_manager.peft_model.load_adapter(
-                        str(expert_path), adapter_name=expert_name
-                    )
+                print(f"  Loading {expert_name} from {target_path}...")
+                self.expert_manager.peft_model.load_adapter(
+                    str(target_path), adapter_name=expert_name
+                )
             print("  All 4 experts loaded successfully")
         else:
             print("  Using uninitialized expert adapters (DEBUG mode)")
