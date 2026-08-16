@@ -73,13 +73,21 @@ class DummyCausalLM(nn.Module):
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         return {"input_ids": input_ids, **kwargs}
 
-    def forward(self, input_ids, attention_mask=None, labels=None):
-        batch, seq = input_ids.shape
-        x = torch.randn(batch, seq, 8, device=input_ids.device)
+    def forward(self, input_ids=None, attention_mask=None, labels=None, **kwargs):
+        if input_ids is None and "inputs_embeds" in kwargs and kwargs["inputs_embeds"] is not None:
+            batch, seq, _ = kwargs["inputs_embeds"].shape
+            device = kwargs["inputs_embeds"].device
+        elif input_ids is not None:
+            batch, seq = input_ids.shape
+            device = input_ids.device
+        else:
+            batch, seq, device = 2, 4, torch.device("cpu")
+
+        x = torch.randn(batch, seq, 8, device=device)
         logits = self.lm_head(x)
         loss = None
         if labels is not None:
-            loss = torch.tensor(0.5, device=input_ids.device, requires_grad=True)
+            loss = torch.tensor(0.5, device=device, requires_grad=True)
 
         class Outputs:
             pass
