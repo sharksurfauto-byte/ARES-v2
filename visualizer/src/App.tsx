@@ -4,8 +4,7 @@ import { Header } from './components/Header';
 import { PipelineFlowGraph } from './components/PipelineFlowGraph';
 import { AttentionExplainer } from './components/AttentionExplainer';
 import { TokenStream } from './components/TokenStream';
-import { TelemetryGauges } from './components/TelemetryGauges';
-import { Network, Layers, Sparkles } from 'lucide-react';
+import { CleanOutput } from './components/CleanOutput';
 
 export function App() {
   const [prompt, setPrompt] = useState('Solve step-by-step: If 3x + 7 = 22, what is x?');
@@ -221,9 +220,13 @@ export function App() {
           />
         )}
 
-        {/* Bottom Section: Flowing Token Stream & Side Inspector */}
+        {/* Bottom Section: Flowing Token Stream, Clean Output & Side Inspector */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 flex flex-col gap-4">
+            <CleanOutput
+              events={events}
+              isGenerating={isGenerating}
+            />
             <TokenStream
               events={events}
               selectedTokenIndex={selectedTokenIndex}

@@ -76,9 +76,11 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setScale((prev) => Math.max(0.4, Math.min(3.0, prev + delta)));
+    if (e.ctrlKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setScale((prev) => Math.max(0.4, Math.min(3.0, prev + delta)));
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -222,7 +224,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
             </div>
 
             <span className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
-              <Move className="w-3 h-3 text-slate-400" /> Drag to pan · Scroll to zoom · Layer {attnLayer} · {attnHead === -1 ? 'Mean Across All Heads' : `Head ${attnHead}`} · {N} Tokens
+              <Move className="w-3 h-3 text-slate-400" /> Drag to pan · Ctrl + Scroll to zoom · Layer {attnLayer} · {attnHead === -1 ? 'Mean Across All Heads' : `Head ${attnHead}`} · {N} Tokens
             </span>
           </div>
 
