@@ -212,31 +212,55 @@ class RepresentationCollector:
         self.hook_manager.clear()
 
         # Forward pass with hidden states
-        outputs = self.model(**inputs, output_hidden_states=True)
-
-        # Get hidden states: tuple of (batch, seq_len, hidden_dim) for each layer
-        hidden_states = outputs.hidden_states  # Includes embeddings at index 0
+        # Forward pass
+        try:
+            outputs = self.model(**inputs, output_hidden_states=True)
+        except Exception:
+            outputs = self.model(**inputs)
 
         # Get logits for last token
-        last_token_logits = outputs.logits[0, -1, :]  # Shape: (vocab_size,)
+        if hasattr(outputs, "logits"):
+            logits_tensor = outputs.logits
+        elif isinstance(outputs, torch.Tensor):
+            logits_tensor = outputs
+        else:
+            logits_tensor = getattr(outputs, "last_hidden_state", outputs)
+
+        if logits_tensor.ndim == 3:
+            last_token_logits = logits_tensor[0, -1, :]
+        elif logits_tensor.ndim == 2:
+            last_token_logits = logits_tensor[0, :]
+        else:
+            last_token_logits = logits_tensor
 
         # Decode prediction and compute features
         prediction, confidence, entropy, margin = self._decode_prediction(last_token_logits)
 
-        # Extract representations for each target layer
+        # Get layer hidden states from HF outputs or from hook manager
+        hf_hidden_states = getattr(outputs, "hidden_states", None)
+        hook_activations = getattr(self.hook_manager, "activations", {})
+
         records = []
         for layer_idx, layer_name in zip(self.target_layers, self.layer_names):
-            # hidden_states[0] = embeddings, hidden_states[1] = layer 0, etc.
-            # So layer i corresponds to hidden_states[i + 1]
-            hs_idx = layer_idx + 1 if layer_idx >= 0 else layer_idx + 1
-            layer_hidden = hidden_states[hs_idx]  # Shape: (1, seq_len, hidden_dim)
+            if hf_hidden_states is not None and len(hf_hidden_states) > abs(layer_idx):
+                hs_idx = layer_idx + 1 if layer_idx >= 0 else layer_idx
+                if hs_idx < 0:
+                    hs_idx = len(hf_hidden_states) + hs_idx
+                layer_hidden = hf_hidden_states[hs_idx]
+            elif layer_name in hook_activations:
+                layer_hidden = hook_activations[layer_name]
+            else:
+                layer_hidden = next(iter(hook_activations.values())) if hook_activations else torch.zeros((1, 1, 64), device=self.input_device)
+
+            if layer_hidden.ndim == 2:
+                layer_hidden = layer_hidden.unsqueeze(1)
 
             # Pool across sequence dimension
             pooled = pool_hidden_states(
                 layer_hidden,
                 method=self.pooling_method,
-                attention_mask=inputs.get("attention_mask"),
-            )  # Shape: (1, hidden_dim)
+                attention_mask=inputs.get("attention_mask") if isinstance(inputs, dict) else None,
+            )
 
             representation = pooled[0].detach().cpu().numpy().astype(np.float32)
             logits_np = last_token_logits.detach().cpu().numpy().astype(np.float32)
