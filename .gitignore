@@ -19,6 +19,7 @@ checkpoints/
 datasets/
 experiments/
 reports/
+!reports/*.md
 *.bin
 *.pt
 *.safetensors
