@@ -23,6 +23,7 @@ def run_phase5_benchmark():
     parser.add_argument("--config", type=str, default="configs/experts/expert_mixture.yaml", help="Path to config")
     parser.add_argument("--output_report", type=str, default="reports/phase5_routing_evaluation.md", help="Output report path")
     parser.add_argument("--num_samples", type=int, default=200, help="Number of benchmark samples")
+    parser.add_argument("--confidence_threshold", type=float, default=0.50, help="Confidence threshold T_confidence")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
@@ -31,13 +32,29 @@ def run_phase5_benchmark():
 
     print("=" * 60)
     print("ARES V2 Phase 5 — Evaluating Domain Specialization & 4-Way Routing Benchmark")
+    print(f"Confidence Threshold T_confidence: {args.confidence_threshold}")
     print("=" * 60)
 
     # 1. Instantiate Reliability Engine & Router
     grm = GlobalReliabilityModel(input_dim=3584, bottleneck_dim=128).to(device)
     lrm = LocalReliabilityModel(input_dim=3584, bottleneck_dim=64).to(device)
-    manager = ReliabilityManager(grm, lrm, confidence_threshold=0.70)
-    router = AdaptiveExpertRouter(manager, confidence_threshold=0.70, domain_certainty_threshold=0.35)
+    grm_ckpt = Path("checkpoints/reliability/grm")
+    lrm_ckpt = Path("checkpoints/reliability/lrm")
+    if grm_ckpt.exists() and lrm_ckpt.exists():
+        try:
+            from ares.utils.checkpoint import load_checkpoint_with_validation
+            load_checkpoint_with_validation(grm_ckpt, grm, weights_filename="grm_model.pt")
+            load_checkpoint_with_validation(lrm_ckpt, lrm, weights_filename="lrm_model.pt")
+            print("Loaded trained GRM and LRM checkpoints from checkpoints/reliability/")
+        except Exception as e:
+            print(f"Using un-trained reliability probes ({e})")
+
+    manager = ReliabilityManager(grm, lrm, confidence_threshold=args.confidence_threshold)
+    router = AdaptiveExpertRouter(
+        manager,
+        confidence_threshold=args.confidence_threshold,
+        domain_certainty_threshold=0.35,
+    )
 
     domains = ["general", "math", "code", "science"]
     experts = ["E0_general", "E1_math", "E2_code", "E3_science"]
