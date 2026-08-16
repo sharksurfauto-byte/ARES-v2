@@ -185,7 +185,7 @@ def main():
     print(f"Checkpoints saved: {saved_paths}")
 
     # 8. Run Evaluation Test
-    test_rep = torch.randn(input_dim)
+    test_rep = torch.randn(input_dim, device=device)
     res = manager.evaluate(test_rep, layer_idx=-1)
     print("\nSample Reliability Evaluation:")
     print(f"  Predicted Domain: {res.predicted_domain}")

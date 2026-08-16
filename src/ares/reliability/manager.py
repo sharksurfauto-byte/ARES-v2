@@ -90,6 +90,10 @@ class ReliabilityManager(nn.Module):
         self.grm.eval()
         self.lrm.eval()
 
+        device = next(self.grm.parameters()).device
+        if representation.device != device:
+            representation = representation.to(device)
+
         if representation.ndim == 1:
             representation = representation.unsqueeze(0)
 
