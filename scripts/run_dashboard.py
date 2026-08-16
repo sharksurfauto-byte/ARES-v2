@@ -27,6 +27,8 @@ if "engine" not in st.session_state:
     st.session_state.engine = None
 if "events" not in st.session_state:
     st.session_state.events = []
+if "snapshot" not in st.session_state:
+    st.session_state.snapshot = None
 if "telemetry" not in st.session_state:
     st.session_state.telemetry = TelemetryCollector()
 if "generated" not in st.session_state:
@@ -34,10 +36,9 @@ if "generated" not in st.session_state:
 if "policy" not in st.session_state:
     st.session_state.policy = "adaptive"
 if "prompt" not in st.session_state:
-    st.session_state.prompt = ""
+    st.session_state.prompt = "Solve step-by-step: If 3x + 7 = 22, what is x?"
 
 # ─── Configuration ────────────────────────────────────────────────────
-# Checkpoint paths - production mode requires all checkpoints
 DEVICE_MAP = "auto"
 USE_CACHE = False  # Critical: disable KV cache for dynamic expert switching
 
@@ -48,8 +49,6 @@ POLICY_OPTIONS = ["adaptive", "always_base", "always_expert", "random_expert"]
 
 def init_engine():
     """Initialize ARESInferenceEngine with production checkpoints."""
-    from ares.utils.checkpoint import load_checkpoint_with_validation
-
     try:
         engine = ARESInferenceEngine(
             model_name="Qwen/Qwen2.5-7B",
@@ -67,7 +66,6 @@ def init_engine():
         return True
     except FileNotFoundError as e:
         st.error(f"Missing required checkpoints for production mode:\n{e}")
-        # Fall back to debug mode (untrained probes) - NOT recommended for demo
         try:
             engine = ARESInferenceEngine(
                 model_name="Qwen/Qwen2.5-7B",
@@ -85,13 +83,14 @@ def init_engine():
             st.sidebar.warning("Running in DEBUG mode (untrained probes).")
             return True
         except Exception as e2:
-            st.error(f"Failed to initialize engine even in debug mode: {e2}")
+            st.error(f"Failed to initialize engine: {e2}")
             return False
 
 
 def run_generation(engine, prompt, max_new_tokens, temperature, do_sample, policy):
     """Run generation and collect events."""
     from ares.inference.generation import generate_stream
+    from ares.inference.telemetry import TelemetryCollector
 
     events = list(generate_stream(
         engine=engine,
@@ -106,19 +105,14 @@ def run_generation(engine, prompt, max_new_tokens, temperature, do_sample, polic
     st.session_state.events = events
     st.session_state.generated = True
 
-    # Collect telemetry
-    from ares.inference.telemetry import TelemetryCollector
-    # We need to re-create or update the telemetry collector
-
-    # Update session state with final metrics
-    from ares.inference.telemetry import TelemetryCollector
     tc = TelemetryCollector(events)
     snapshot = tc.get_snapshot()
     st.session_state.telemetry = tc
+    st.session_state.snapshot = snapshot
     return snapshot
 
 
-def render_gauge(label: str, value: float, max_val: float = 1.0, title_suffix: str = "") -> None:
+def render_gauge(label: str, value: float, max_val: float = 1.0) -> None:
     """Render a simple gauge using st.progress."""
     pct = min(1.0, max(0.0, float(value / max_val))) if max_val > 0 else 0.0
     st.write(f"**{label}**: {value:.3f}")
@@ -127,55 +121,65 @@ def render_gauge(label: str, value: float, max_val: float = 1.0, title_suffix: s
 
 def render_domain_bars(domains: Dict[str, int], total: int) -> None:
     """Render domain probability bars."""
-    st.write("**Domain Probabilities**")
+    st.write("**GRM Domain Probability Distribution**")
     for domain, count in sorted(domains.items(), key=lambda x: -x[1]):
         pct = (count / total * 100) if total > 0 else 0
-        bar = "█" * int(pct / 2)  # Rough visual bar
-        st.write(f"{domain:8s}: {pct:5.1f}% {bar}")
+        bar = "█" * int(pct / 2)
+        st.write(f"`{domain:8s}`: {pct:5.1f}% {bar}")
 
 
 def render_routing_timeline(events: List[InferenceEvent]) -> None:
     """Render the routing timeline table."""
-    st.write("**Routing Timeline**")
-
-    # Table header
-    cols = ["Token", "R(x)", "Domain", "Route"]
+    st.write("**Detailed Per-Token Routing Log**")
+    cols = ["Token", "R(x)", "Domain", "Route", "Latency"]
     cols_display = st.columns(len(cols))
     for i, col in enumerate(cols):
         cols_display[i].write(f"**{col}**")
 
-    # Render each token
     for e in events:
         if e.is_prompt_token:
             continue
         row_cols = st.columns(len(cols))
-        route_str = "EXPERT" if e.requires_intervention else "BASE"
+        route_str = f"🔴 EXPERT ({e.get_expert_display_name()})" if e.requires_intervention else "🟢 BASE"
 
-        # Highlight interventions
-        if e.requires_intervention:
-            route_str = f"🔴 {route_str}"
-
-        row_cols[0].write(e.token[:8] + ("..." if len(e.token) > 8 else ""))
-        row_cols[1].write(f"{e.combined_reliability:.2f}")
+        row_cols[0].write(f"`{e.token}`")
+        row_cols[1].write(f"{e.combined_reliability:.3f}")
         row_cols[2].write(e.predicted_domain)
         row_cols[3].write(route_str)
+        row_cols[4].write(f"{e.total_latency_ms:.1f} ms")
 
 
 # ─── Main Application ─────────────────────────────────────────────────
 def main():
     st.title("🧠 ARES v2 - Adaptive Reliability & Expert System")
-    st.caption("Real-time inference dashboard - Qwen 7B + GRM/LRM + Expert Routing")
+    st.caption("Real-time inference prototype — Qwen 7B + GRM/LRM Probes + Multi-Domain LoRA Experts")
+
+    # Auto-initialize engine if not ready
+    if st.session_state.engine is None:
+        with st.spinner("Initializing ARES Engine & loading checkpoints..."):
+            success = init_engine()
+            if success:
+                st.success("ARES Engine initialized cleanly!")
 
     # ─── Sidebar ──────────────────────────────────────────────────────
     with st.sidebar:
-        st.header("⚙️ Settings")
+        st.header("⚙️ System Control & Policy")
+
+        if st.session_state.engine is not None:
+            st.success("🟢 Engine Active & Loaded")
+        else:
+            st.error("🔴 Engine Not Initialized")
+            if st.button("🔧 Force Re-Initialize"):
+                init_engine()
+
+        st.divider()
 
         # Policy selection
         st.session_state.policy = st.radio(
             "Routing Policy",
             POLICY_OPTIONS,
             index=0,
-            help="Adaptive: Qwen→GRM/LRM→Router→BASE/EXPERT; Always-Expert: 100% expert; Base-Only: 0%"
+            help="Adaptive: Dynamic GRM/LRM routing; Always-Expert: 100% expert; Always-Base: 0%"
         )
 
         st.divider()
@@ -185,92 +189,78 @@ def main():
         temperature = st.slider("Temperature", 0.1, 1.5, 0.7, 0.1)
         do_sample = st.checkbox("Do sample", value=True)
 
-        st.divider()
+    # ─── Main Area - Prompt & Generation ──────────────────────────────
+    user_prompt = st.text_area(
+        "💬 Enter Input Prompt:",
+        value=st.session_state.prompt,
+        height=100,
+        placeholder="e.g., Solve: 2x + 5 = 15 or Write a python function for quicksort"
+    )
+    st.session_state.prompt = user_prompt
 
-        # Initialize / Generate buttons
-        if st.button("🔧 Initialize Engine", type="primary"):
-            with st.spinner("Initializing ARES engine..."):
-                success = init_engine()
-                if success:
-                    st.success("Engine ready!")
+    if st.button("▶️ Generate Response with ARES Routing", type="primary", use_container_width=True):
+        if not st.session_state.engine:
+            st.error("Engine not ready. Please click Initialize in sidebar.")
+        elif not user_prompt.strip():
+            st.warning("Please enter a prompt first.")
+        else:
+            with st.spinner("Generating tokens with ARES two-pass routing..."):
+                run_generation(
+                    engine=st.session_state.engine,
+                    prompt=user_prompt,
+                    max_new_tokens=max_new,
+                    temperature=temperature,
+                    do_sample=do_sample,
+                    policy=st.session_state.policy,
+                )
 
-        st.divider()
-
-        if st.button("▶️ Generate", type="secondary") and st.session_state.engine:
-            if not st.session_state.prompt.strip():
-                st.warning("Please enter a prompt first.")
-            else:
-                with st.spinner("Generating with ARES pipeline..."):
-                    snapshot = run_generation(
-                        engine=st.session_state.engine,
-                        prompt=st.session_state.prompt,
-                        max_new_tokens=max_new,
-                        temperature=temperature,
-                        do_sample=do_sample,
-                        policy=st.session_state.policy,
-                    )
-                # Render summary stats
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Tokens generated", snapshot.tokens_generated)
-                c2.metric("Expert activations%", f"{snapshot.expert_compute_percentage}%")
-                c3.metric("Reduction vs Always-On", f"{snapshot.expert_activation_reduction_vs_always_on*100:.1f}%")
-                c4.metric("Avg reliability", f"{snapshot.average_reliability:.2f}")
-
-                # Render domain bars
-                render_domain_bars(snapshot.domain_distribution, snapshot.tokens_generated)
-
-                # Render reliability gauges
-                render_gauge("Global R", snapshot.average_reliability, 1.0)
-                render_gauge("Routing latency", snapshot.average_routing_latency_ms, 50.0)
-                render_gauge("Expert latency", snapshot.average_expert_latency_ms, 50.0)
-
-                # Render routing timeline
-                render_routing_timeline(st.session_state.events)
+    # ─── Results Dashboard (Main Area) ────────────────────────────────
+    if st.session_state.generated and st.session_state.events and st.session_state.snapshot:
+        snapshot = st.session_state.snapshot
 
         st.divider()
+        st.header("📊 ARES Execution Telemetry")
 
-        # Prompt input
-        user_prompt = st.text_area(
-            "💬 Enter prompt:",
-            value=st.session_state.prompt,
-            height=100,
-            placeholder="e.g., Solve: 2x + 5 = 15"
-        )
-        st.session_state.prompt = user_prompt
+        # Key Metrics Row
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Tokens Generated", snapshot.tokens_generated)
+        c2.metric("Expert Activations", f"{snapshot.expert_compute_percentage:.1f}%", f"{snapshot.expert_activations} tokens")
+        c3.metric("Compute Savings", f"{snapshot.expert_activation_reduction_vs_always_on*100:.1f}%", "vs Always-On")
+        c4.metric("Mean Reliability R(x)", f"{snapshot.average_reliability:.3f}")
 
-    # ─── Main Area - Token Stream ─────────────────────────────────────
-    if st.session_state.generated and st.session_state.events:
         st.divider()
-        st.subheader("📜 Token Stream")
-
+        st.header("📜 Model Output Response")
         full_text = "".join(e.token for e in st.session_state.events if not e.is_prompt_token)
         st.write(full_text)
 
         st.divider()
-        st.subheader("🔍 Per-Token ARES Pipeline Annotations")
+        st.header("🔍 Per-Token ARES Pipeline Annotations")
         for e in st.session_state.events:
             if e.is_prompt_token:
                 continue
-            route_marker = "🔴 EXPERT" if e.requires_intervention else "🟢 BASE"
+            route_marker = f"🔴 EXPERT ({e.get_expert_display_name()})" if e.requires_intervention else "🟢 BASE"
             st.markdown(
                 f"**`{e.token}`** — `{route_marker}` | **R(x)**={e.combined_reliability:.3f} | "
                 f"Domain={e.predicted_domain} | {e.get_latency_breakdown_str()}"
             )
 
+        st.divider()
+        st.header("📈 Reliability & Latency Breakdown")
+        g1, g2, g3 = st.columns(3)
+        with g1:
+            render_gauge("Mean Reliability", snapshot.average_reliability, 1.0)
+        with g2:
+            render_gauge("Routing Latency", snapshot.average_routing_latency_ms, 50.0)
+        with g3:
+            render_gauge("Expert Latency", snapshot.average_expert_latency_ms, 50.0)
+
+        render_domain_bars(snapshot.domain_distribution, snapshot.tokens_generated)
+
+        st.divider()
+        render_routing_timeline(st.session_state.events)
+
     elif not st.session_state.generated:
-        # Welcome message when nothing generated yet
-        st.info("👈 Initialize the engine and enter a prompt to get started.")
-        st.markdown(
-            """
-            **What this dashboard shows:**
-            - **Token Stream**: Live generation with typewriter effect
-            - **Routing Timeline**: Per-token BASE/EXPERT decisions
-            - **Domain Probabilities**: GRM domain distribution
-            - **Reliability Gauges**: Global R, Local R, Combined R(x)
-            - **Expert Activations**: % of tokens using expert adapters
-            - **Routing Policies**: Adaptive, Base-Only, Always-Expert, Random
-            """
-        )
+        st.info("👈 Enter a prompt above and click **Generate Response with ARES Routing** to view live telemetry.")
 
 
 if __name__ == "__main__":
