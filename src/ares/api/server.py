@@ -45,6 +45,9 @@ class GenerationRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     do_sample: bool = Field(default=True, description="Whether to sample or greedy decode")
     policy: str = Field(default="adaptive", description="Routing policy ('adaptive', 'always_base', 'always_expert', 'random_expert')")
+    collect_attentions: bool = Field(default=False, description="Whether to collect true Qwen self-attention weights")
+    attn_layer: int = Field(default=12, ge=0, le=27, description="Target layer index for self-attention (0 to 27)")
+    attn_head: int = Field(default=7, ge=-1, le=27, description="Target head index (-1 for average across heads, 0 to 27)")
 
 
 def create_app(engine: Optional[ARESInferenceEngine] = None) -> FastAPI:
@@ -101,6 +104,8 @@ def create_app(engine: Optional[ARESInferenceEngine] = None) -> FastAPI:
             "active_expert": eng.active_expert,
             "available_experts": list(eng.expert_manager.EXPERT_MAP.values()),
             "routing_policies": ["adaptive", "always_base", "always_expert", "random_expert"],
+            "num_hidden_layers": 28,
+            "num_attention_heads": 28,
         }
 
     @app.post("/api/generate_stream")
@@ -122,6 +127,9 @@ def create_app(engine: Optional[ARESInferenceEngine] = None) -> FastAPI:
                 temperature=request.temperature,
                 do_sample=request.do_sample,
                 policy=request.policy,
+                collect_attentions=request.collect_attentions,
+                attn_layer=request.attn_layer,
+                attn_head=request.attn_head,
             ):
                 collector.add_event(event)
                 payload = event.to_dict()

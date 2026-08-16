@@ -364,15 +364,17 @@ class ARESInferenceEngine:
         self,
         input_ids: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+        output_attentions: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Tuple[torch.Tensor, ...]]]:
         """Forward pass with BASE Qwen (no expert adapters active).
 
         Args:
             input_ids: Input token IDs
             attention_mask: Attention mask
+            output_attentions: Whether to capture self-attention tensors
 
         Returns:
-            Logits tensor (batch, seq_len, vocab_size)
+            Logits tensor or (logits, attentions_tuple) if output_attentions is True
         """
         # Ensure no expert is active
         was_active = self.active_expert is not None
@@ -383,12 +385,15 @@ class ARESInferenceEngine:
             input_ids=input_ids,
             attention_mask=attention_mask,
             use_cache=self.use_cache,
+            output_attentions=output_attentions,
         )
 
         # Restore expert if it was active
         if was_active:
             self.expert_manager.enable_experts()
 
+        if output_attentions:
+            return outputs.logits, outputs.attentions
         return outputs.logits
 
     def forward_expert(

@@ -30,6 +30,12 @@ export type InferenceEvent = {
   expert_activation_count: number;
   timestamp: number;
   layer_idx: number;
+
+  // Qwen Self-Attention Telemetry
+  attention_weights?: number[] | null;
+  attention_layer?: number | null;
+  attention_head?: number | null;
+  source_tokens?: string[] | null;
 };
 
 export type TelemetrySnapshot = {

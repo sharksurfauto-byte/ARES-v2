@@ -17,6 +17,35 @@ from ares.inference.events import InferenceEvent, GenerationConfig, RoutingPolic
 from ares.routing.router import RoutingDecision
 
 
+def _extract_attention_weights(
+    engine: ARESInferenceEngine,
+    attentions_tuple: Any,
+    attn_layer: int,
+    attn_head: int,
+    input_ids: torch.Tensor,
+) -> Tuple[Optional[List[float]], Optional[List[str]]]:
+    """Helper to extract token-to-token self-attention weights for a specific layer and head."""
+    if attentions_tuple is None or not attentions_tuple:
+        return None, None
+    try:
+        safe_layer = max(0, min(attn_layer, len(attentions_tuple) - 1))
+        layer_attn = attentions_tuple[safe_layer]  # (batch, num_heads, seq_len, seq_len)
+        num_heads = layer_attn.shape[1]
+
+        if attn_head >= 0:
+            safe_head = max(0, min(attn_head, num_heads - 1))
+            row_attn = layer_attn[0, safe_head, -1, :]
+        else:
+            row_attn = layer_attn[0, :, -1, :].mean(dim=0)
+
+        attn_weights = [float(x) for x in row_attn.float().cpu().numpy()]
+        curr_ids = input_ids[0].tolist()
+        source_toks = [engine.tokenizer.decode([tid], skip_special_tokens=False) for tid in curr_ids]
+        return attn_weights, source_toks
+    except Exception:
+        return None, None
+
+
 def generate_stream(
     engine: ARESInferenceEngine,
     prompt: str,
@@ -25,6 +54,9 @@ def generate_stream(
     do_sample: bool = True,
     policy: str = "adaptive",
     layer_idx: Optional[int] = None,
+    collect_attentions: bool = False,
+    attn_layer: int = 12,
+    attn_head: int = 7,
 ) -> Generator[InferenceEvent, None, None]:
     """
     Generate tokens with ARES adaptive routing, yielding InferenceEvent per token.
@@ -79,8 +111,16 @@ def generate_stream(
     # INITIAL BASE FORWARD to get first hidden state for routing
     # ──────────────────────────────────────────────────────────────
     start_routing = time.perf_counter()
-    base_logits = engine.forward_base(input_ids, attention_mask)
+    attentions_tuple = None
+    if collect_attentions:
+        base_logits, attentions_tuple = engine.forward_base(input_ids, attention_mask, output_attentions=True)
+    else:
+        base_logits = engine.forward_base(input_ids, attention_mask, output_attentions=False)
     routing_latency_ms = (time.perf_counter() - start_routing) * 1000
+
+    attn_weights, source_toks = _extract_attention_weights(
+        engine, attentions_tuple, attn_layer, attn_head, input_ids
+    )
 
     # Extract hidden state from BASE forward
     hidden_state = engine.get_hidden_state(input_ids, attention_mask)
@@ -131,6 +171,10 @@ def generate_stream(
         expert_activation_count=engine.expert_activation_count,
         timestamp=time.time(),
         layer_idx=layer_idx,
+        attention_weights=attn_weights,
+        attention_layer=attn_layer if collect_attentions else None,
+        attention_head=attn_head if collect_attentions else None,
+        source_tokens=source_toks,
     )
     yield first_event
 
@@ -147,8 +191,19 @@ def generate_stream(
         # ──────────────────────────────────────────────────────
         routing_start = time.perf_counter()
 
-        # Base forward for routing
-        base_logits = engine.forward_base(current_input_ids, current_attention_mask)
+        attentions_tuple = None
+        if collect_attentions:
+            base_logits, attentions_tuple = engine.forward_base(
+                current_input_ids, current_attention_mask, output_attentions=True
+            )
+        else:
+            base_logits = engine.forward_base(
+                current_input_ids, current_attention_mask, output_attentions=False
+            )
+
+        attn_weights, source_toks = _extract_attention_weights(
+            engine, attentions_tuple, attn_layer, attn_head, current_input_ids
+        )
 
         # Extract hidden state from BASE
         hidden_state = engine.get_hidden_state(current_input_ids, current_attention_mask)
@@ -232,6 +287,10 @@ def generate_stream(
             expert_activation_count=engine.expert_activation_count,
             timestamp=time.time(),
             layer_idx=layer_idx,
+            attention_weights=attn_weights,
+            attention_layer=attn_layer if collect_attentions else None,
+            attention_head=attn_head if collect_attentions else None,
+            source_tokens=source_toks,
         )
         yield event
 

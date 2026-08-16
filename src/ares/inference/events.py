@@ -106,6 +106,12 @@ class InferenceEvent:
     timestamp: float
     layer_idx: int
 
+    # Qwen True Self-Attention Telemetry (Optional debug/visualizer mode)
+    attention_weights: Optional[List[float]] = None
+    attention_layer: Optional[int] = None
+    attention_head: Optional[int] = None
+    source_tokens: Optional[List[str]] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization (JSON/CSV)."""
         return {
@@ -135,6 +141,10 @@ class InferenceEvent:
             "expert_activation_count": self.expert_activation_count,
             "timestamp": self.timestamp,
             "layer_idx": self.layer_idx,
+            "attention_weights": self.attention_weights,
+            "attention_layer": self.attention_layer,
+            "attention_head": self.attention_head,
+            "source_tokens": self.source_tokens,
         }
 
     @classmethod
