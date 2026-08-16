@@ -113,6 +113,7 @@ def load_qwen_model(
         "trust_remote_code": config.trust_remote_code,
         "use_cache": config.use_cache,
         "output_hidden_states": True,  # Mandatory for ARES representation collection
+        "attn_implementation": getattr(config, "attn_implementation", "eager"),
     }
 
     if resolved_device_map is not None:

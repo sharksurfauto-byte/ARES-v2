@@ -99,6 +99,7 @@ class ARESInferenceEngine:
         domain_certainty_threshold: float = 0.35,
         target_layer: int = -1,
         use_cache: bool = False,  # CRITICAL: Disable KV cache for correctness
+        attn_implementation: str = "eager",  # CRITICAL: eager attention required for output_attentions=True
         seed: int = 42,
         production_mode: bool = True,
     ):
@@ -114,6 +115,7 @@ class ARESInferenceEngine:
             domain_certainty_threshold: T_domain for specialized vs fallback expert
             target_layer: Layer index for hidden state extraction (-1 = last)
             use_cache: Whether to use KV cache (FALSE for dynamic expert switching)
+            attn_implementation: Attention implementation ('eager' for output_attentions=True)
             seed: Random seed for reproducibility
             production_mode: If True, require all checkpoints; else allow untrained
 
@@ -127,6 +129,7 @@ class ARESInferenceEngine:
         self.domain_certainty_threshold = domain_certainty_threshold
         self.target_layer = target_layer
         self.use_cache = use_cache
+        self.attn_implementation = attn_implementation
         self.seed = seed
         self.production_mode = production_mode
 
@@ -156,12 +159,13 @@ class ARESInferenceEngine:
                 print(f"  - {m}")
 
         # 1. Load Qwen backbone + tokenizer (handles device_map="auto" correctly)
-        print(f"Loading Qwen model: {model_name} (dtype: {torch_dtype}, device_map: {device_map})...")
+        print(f"Loading Qwen model: {model_name} (dtype: {torch_dtype}, device_map: {device_map}, attn: {attn_implementation})...")
         model_config = ModelConfig(
             name_or_path=model_name,
             torch_dtype=torch_dtype,
             device_map=device_map,
             use_cache=use_cache,
+            attn_implementation=attn_implementation,
         )
         self.tokenizer = load_qwen_tokenizer(model_config)
         self.model = load_qwen_model(model_config)

@@ -21,6 +21,7 @@ class ModelConfig:
     max_position_embeddings: int = 2048
     trust_remote_code: bool = False
     use_cache: bool = True
+    attn_implementation: str = "eager"
 
 
 @dataclass
