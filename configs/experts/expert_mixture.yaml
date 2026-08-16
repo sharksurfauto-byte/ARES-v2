@@ -1,0 +1,53 @@
+# Configuration for Phase 5 — Specialized Experts & Adaptive Routing Layer
+
+experts:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+  target_layers:
+    start_layer: 16
+    end_layer: 31
+  domain_experts:
+    E0_general:
+      domain: "general"
+      description: "General reasoning and multi-turn conversation expert"
+    E1_math:
+      domain: "math"
+      description: "Mathematical problem solving and numerical calculation expert"
+    E2_code:
+      domain: "code"
+      description: "Code generation, debugging, and syntax expert"
+    E3_science:
+      domain: "science"
+      description: "Scientific reasoning and factual domain expert"
+
+router:
+  default_policy: "adaptive"
+  confidence_threshold: 0.70  # T_confidence: R(x) >= 0.70 routes to Base Qwen (0 extra compute)
+  domain_certainty_threshold: 0.35  # T_domain: max P(domain|H) >= 0.35 routes to specialized expert, else E0_general
+  policies:
+    - "adaptive"
+    - "always_base"
+    - "always_expert"
+    - "random_expert"
+
+calibration:
+  temperature: 1.0
+  enable_platt_scaling: true
+
+evaluation:
+  benchmark_systems:
+    - "base_qwen"
+    - "always_on_expert"
+    - "ares_adaptive"
+    - "random_expert"
+  domains:
+    - "general"
+    - "math"
+    - "code"
+    - "science"
