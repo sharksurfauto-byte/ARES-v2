@@ -85,9 +85,11 @@ def main():
     print("=" * 60)
 
     # 1. Load config
+    import yaml
     config_path = Path(args.config)
     if config_path.exists():
-        cfg = load_config(config_path)
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
         grm_cfg = cfg.get("grm", {})
         lrm_cfg = cfg.get("lrm", {})
         manager_cfg = cfg.get("manager", {})
@@ -131,7 +133,8 @@ def main():
     lrm_train_loader = DataLoader(lrm_train_ds, batch_size=args.batch_size, shuffle=True)
     lrm_val_loader = DataLoader(lrm_val_ds, batch_size=args.batch_size, shuffle=False)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    from ares.utils.environment import resolve_device
+    device = resolve_device()
     print(f"Training on device: {device}")
 
     # 4. Instantiate Models
