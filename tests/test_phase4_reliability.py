@@ -213,5 +213,5 @@ class TestReliabilityManager:
 
         assert saved["grm"].exists()
         assert saved["lrm"].exists()
-        assert (out_dir / "grm_model.json").exists()
-        assert (out_dir / "lrm_model.json").exists()
+        assert (out_dir / "grm" / "checkpoint_meta.json").exists()
+        assert (out_dir / "lrm" / "checkpoint_meta.json").exists()

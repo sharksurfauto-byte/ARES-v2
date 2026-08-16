@@ -145,10 +145,22 @@ class ReliabilityManager(nn.Module):
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        grm_path = out_dir / "grm_model.pt"
-        lrm_path = out_dir / "lrm_model.pt"
+        grm_dir = out_dir / "grm"
+        lrm_dir = out_dir / "lrm"
 
-        save_checkpoint_with_metadata(self.grm, grm_path, metadata={"model_type": "GRM", **(metadata or {})})
-        save_checkpoint_with_metadata(self.lrm, lrm_path, metadata={"model_type": "LRM", **(metadata or {})})
+        save_checkpoint_with_metadata(
+            model=self.grm,
+            save_dir=grm_dir,
+            component_type="RELIABILITY_MODEL",
+            metadata={"model_type": "GRM", **(metadata or {})},
+            weights_filename="grm_model.pt",
+        )
+        save_checkpoint_with_metadata(
+            model=self.lrm,
+            save_dir=lrm_dir,
+            component_type="RELIABILITY_MODEL",
+            metadata={"model_type": "LRM", **(metadata or {})},
+            weights_filename="lrm_model.pt",
+        )
 
-        return {"grm": grm_path, "lrm": lrm_path}
+        return {"grm": grm_dir / "grm_model.pt", "lrm": lrm_dir / "lrm_model.pt"}
