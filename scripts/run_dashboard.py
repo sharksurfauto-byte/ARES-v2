@@ -120,9 +120,9 @@ def run_generation(engine, prompt, max_new_tokens, temperature, do_sample, polic
 
 def render_gauge(label: str, value: float, max_val: float = 1.0, title_suffix: str = "") -> None:
     """Render a simple gauge using st.progress."""
-    pct = min(max_val, max(0, value)) / max_val if max_val > 0 else 0
+    pct = min(1.0, max(0.0, float(value / max_val))) if max_val > 0 else 0.0
     st.write(f"**{label}**: {value:.3f}")
-    st.progress(pct, f"{label}: {value:.3f} / {max_val:.3f}")
+    st.progress(pct, text=f"{label}: {value:.3f} / {max_val:.3f}")
 
 
 def render_domain_bars(domains: Dict[str, int], total: int) -> None:
@@ -243,17 +243,19 @@ def main():
         st.divider()
         st.subheader("📜 Token Stream")
 
-        # Token stream with typewriter effect
-        placeholder = st.container()
-        with placeholder:
-            for e in st.session_state.events:
-                if e.is_prompt_token:
-                    continue
-                # Typewriter-style display
-                st.write(f"**{e.token}**", end=" ")
-                # Show routing info in a small caption
-                route_marker = "🔴" if e.requires_intervention else ""
-                st.caption(f"R={e.combined_reliability:.2f} | {e.get_route_display()} | {e.get_latency_breakdown_str()}")
+        full_text = "".join(e.token for e in st.session_state.events if not e.is_prompt_token)
+        st.write(full_text)
+
+        st.divider()
+        st.subheader("🔍 Per-Token ARES Pipeline Annotations")
+        for e in st.session_state.events:
+            if e.is_prompt_token:
+                continue
+            route_marker = "🔴 EXPERT" if e.requires_intervention else "🟢 BASE"
+            st.markdown(
+                f"**`{e.token}`** — `{route_marker}` | **R(x)**={e.combined_reliability:.3f} | "
+                f"Domain={e.predicted_domain} | {e.get_latency_breakdown_str()}"
+            )
 
     elif not st.session_state.generated:
         # Welcome message when nothing generated yet

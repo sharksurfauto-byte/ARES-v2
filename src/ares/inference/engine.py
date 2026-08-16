@@ -195,7 +195,7 @@ class ARESInferenceEngine:
             num_domains=4,
             dropout=0.1,
             use_layer_depth_embedding=True,
-            _effective_num_layers=28,
+            num_layers=num_layers,
         ).to(self.input_device)
 
         self.lrm = LocalReliabilityModel(
@@ -204,7 +204,7 @@ class ARESInferenceEngine:
             hidden_dim=128,
             dropout=0.1,
             use_layer_depth_embedding=True,
-            _effective_num_layers=28,
+            num_layers=num_layers,
         ).to(self.input_device)
 
         if production_mode and all_exist:
