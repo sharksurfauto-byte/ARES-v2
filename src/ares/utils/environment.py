@@ -118,3 +118,16 @@ def cleanup_ddp() -> None:
     """Clean up and destroy PyTorch distributed process group if initialized."""
     if is_ddp_initialized():
         dist.destroy_process_group()
+
+
+def resolve_device() -> torch.device:
+    """Safely resolve device, falling back to CPU if CUDA capability is incompatible."""
+    if torch.cuda.is_available():
+        try:
+            # Test simple tensor operation on CUDA to verify kernel compatibility
+            t = torch.zeros(1, device="cuda")
+            _ = t + 1
+            return torch.device("cuda")
+        except Exception:
+            pass
+    return torch.device("cpu")
