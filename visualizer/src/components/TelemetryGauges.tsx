@@ -1,127 +1,117 @@
 import React from 'react';
-import type { TelemetrySnapshot } from '../types';
-import { BarChart3, Gauge, Cpu, Percent } from 'lucide-react';
+import type { InferenceEvent, TelemetrySnapshot } from '../types';
 
 interface TelemetryGaugesProps {
   snapshot: TelemetrySnapshot | null;
+  selectedEvent: InferenceEvent | null;
 }
 
-export const TelemetryGauges: React.FC<TelemetryGaugesProps> = ({ snapshot }) => {
-  if (!snapshot) {
-    return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl text-center text-slate-500 text-xs py-8">
-        Run generation stream to populate execution telemetry gauges...
-      </div>
-    );
-  }
-
-  const {
-    tokens_generated,
-    expert_activations,
-    expert_compute_percentage,
-    expert_activation_reduction_vs_always_on,
-    average_reliability,
-    average_routing_latency_ms,
-    average_expert_latency_ms,
-    domain_distribution,
-  } = snapshot;
-
-  const savingsPct = (expert_activation_reduction_vs_always_on * 100).toFixed(1);
-
+export const TelemetryGauges: React.FC<TelemetryGaugesProps> = ({
+  snapshot,
+  selectedEvent,
+}) => {
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-indigo-400" /> ARES Research Telemetry & Compute Savings
-        </h2>
-        <span className="text-xs text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-800/80 px-2.5 py-1 rounded-full">
-          {savingsPct}% Compute Reduction vs Always-On
-        </span>
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* Token Inspector Panel (Compact Side Inspector) */}
+      {selectedEvent ? (
+        <div className="bg-white border border-indigo-200 rounded-xl p-4 shadow-sm flex flex-col gap-2.5">
+          <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+              🔍 Token Inspector
+            </span>
+            <span className="text-xs font-mono font-bold bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-indigo-700">
+              "{selectedEvent.token}"
+            </span>
+          </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between">
-          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-            <Cpu className="w-3.5 h-3.5 text-indigo-400" /> Tokens Generated
-          </span>
-          <span className="text-xl font-bold font-mono text-white mt-1">{tokens_generated}</span>
-        </div>
-
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between">
-          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-            <Percent className="w-3.5 h-3.5 text-rose-400" /> Expert Rate
-          </span>
-          <span className="text-xl font-bold font-mono text-rose-300 mt-1">
-            {expert_compute_percentage.toFixed(1)}%
-          </span>
-          <span className="text-[10px] text-slate-500 font-mono">({expert_activations} tokens)</span>
-        </div>
-
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between">
-          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" /> Savings
-          </span>
-          <span className="text-xl font-bold font-mono text-emerald-300 mt-1">{savingsPct}%</span>
-          <span className="text-[10px] text-slate-500 font-mono">vs Always-Expert</span>
-        </div>
-
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between">
-          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-            <Gauge className="w-3.5 h-3.5 text-sky-400" /> Mean R(x) Score
-          </span>
-          <span className="text-xl font-bold font-mono text-sky-300 mt-1">
-            {average_reliability.toFixed(3)}
-          </span>
-        </div>
-      </div>
-
-      {/* Domain Probabilities & Latency Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* GRM Domain Distribution */}
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-2.5">
-          <span className="text-xs font-semibold text-slate-300 block">
-            GRM Domain Classification Distribution
-          </span>
-          {Object.entries(domain_distribution).map(([domain, count]) => {
-            const pct = tokens_generated > 0 ? (count / tokens_generated) * 100 : 0;
-            return (
-              <div key={domain} className="flex flex-col gap-1 text-xs">
-                <div className="flex justify-between font-mono">
-                  <span className="text-slate-400 capitalize">{domain}</span>
-                  <span className="text-slate-200">{pct.toFixed(1)}% ({count})</span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-indigo-500 to-indigo-400 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Latency Breakdown */}
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between gap-3">
-          <span className="text-xs font-semibold text-slate-300 block">
-            Latency & Compute Overhead Breakdown
-          </span>
-          <div className="flex flex-col gap-2 font-mono text-xs">
-            <div className="flex justify-between items-center bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400">Routing Latency (GRM+LRM):</span>
-              <span className="text-sky-300 font-bold">{average_routing_latency_ms.toFixed(1)} ms</span>
+          <div className="grid grid-cols-2 gap-2 text-xs font-sans">
+            <div className="bg-slate-50 p-2 rounded border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-medium block">Combined R(x) Score</span>
+              <span
+                className={`font-mono font-bold ${
+                  selectedEvent.is_reliable ? 'text-emerald-700' : 'text-rose-700'
+                }`}
+              >
+                {selectedEvent.combined_reliability.toFixed(3)}
+              </span>
             </div>
-            <div className="flex justify-between items-center bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400">Expert Adapter Pass:</span>
-              <span className="text-rose-300 font-bold">{average_expert_latency_ms.toFixed(1)} ms</span>
+
+            <div className="bg-slate-50 p-2 rounded border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-medium block">Predicted Domain</span>
+              <span className="font-mono font-bold text-slate-800 uppercase">
+                {selectedEvent.predicted_domain} ({(selectedEvent.domain_confidence * 100).toFixed(0)}%)
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-2 rounded border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-medium block">Routing Decision</span>
+              <span
+                className={`font-mono font-bold ${
+                  selectedEvent.requires_intervention ? 'text-rose-700' : 'text-emerald-700'
+                }`}
+              >
+                {selectedEvent.requires_intervention ? 'EXPERT' : 'BASE'}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-2 rounded border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-medium block">Selected Expert</span>
+              <span className="font-mono font-bold text-slate-800">
+                {selectedEvent.selected_expert || 'None (Base Qwen)'}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-2 rounded border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-medium block">Global Feasibility R_g</span>
+              <span className="font-mono text-slate-700">{selectedEvent.global_reliability.toFixed(3)}</span>
+            </div>
+
+            <div className="bg-slate-50 p-2 rounded border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-medium block">Local Correctness R_l</span>
+              <span className="font-mono text-slate-700">{selectedEvent.local_reliability.toFixed(3)}</span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 italic">
-            Zero-copy two-passSemantics ensures base logits are reused when R(x) ≥ 0.70.
-          </p>
+
+          <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded border border-slate-200 mt-1">
+            <span>Routing: {selectedEvent.routing_latency_ms.toFixed(1)} ms</span>
+            <span>Expert: {selectedEvent.expert_latency_ms.toFixed(1)} ms</span>
+            <span className="font-bold text-slate-700">Total: {selectedEvent.total_latency_ms.toFixed(1)} ms</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm text-center text-xs text-slate-400 py-6 italic font-sans">
+          Click any generated token to open its detailed inspector view...
+        </div>
+      )}
+
+      {/* Aggregate Telemetry Summary (Light & Restrained) */}
+      {snapshot && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              ARES Execution Telemetry
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {(snapshot.expert_activation_reduction_vs_always_on * 100).toFixed(1)}% Compute Savings
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 font-sans text-xs">
+            <div className="bg-slate-50 p-2 rounded border border-slate-200 text-center">
+              <span className="text-[10px] text-slate-500 block">Total Tokens</span>
+              <span className="font-mono font-bold text-slate-800">{snapshot.tokens_generated}</span>
+            </div>
+            <div className="bg-slate-50 p-2 rounded border border-slate-200 text-center">
+              <span className="text-[10px] text-slate-500 block">Expert Rate</span>
+              <span className="font-mono font-bold text-rose-700">{snapshot.expert_compute_percentage.toFixed(1)}%</span>
+            </div>
+            <div className="bg-slate-50 p-2 rounded border border-slate-200 text-center">
+              <span className="text-[10px] text-slate-500 block">Mean R(x)</span>
+              <span className="font-mono font-bold text-sky-700">{snapshot.average_reliability.toFixed(3)}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,5 @@
 import React from 'react';
 import type { InferenceEvent } from '../types';
-import { FileText, Eye, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface TokenStreamProps {
   events: InferenceEvent[];
@@ -18,101 +17,69 @@ export const TokenStream: React.FC<TokenStreamProps> = ({
   const generatedEvents = events.filter((e) => !e.is_prompt_token);
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-          <FileText className="w-4 h-4 text-indigo-400" /> Interactive Token Output Stream
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+          Token Stream Execution Path
         </h2>
-        <span className="text-xs text-slate-400 font-mono">
+        <span className="text-[11px] text-slate-400 font-mono">
           {generatedEvents.length} tokens generated {isGenerating && '• Streaming...'}
         </span>
       </div>
 
-      {/* Raw Response Container */}
-      <div className="bg-slate-950/90 border border-slate-800/80 rounded-xl p-4 min-h-[100px] font-mono text-sm text-slate-100 whitespace-pre-wrap leading-relaxed">
+      {/* Horizontal Flowing Token Stream Container */}
+      <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-3 min-h-[90px] max-h-[160px] overflow-y-auto flex flex-wrap gap-1.5 items-center leading-relaxed">
         {generatedEvents.length > 0 ? (
           generatedEvents.map((e, idx) => {
             const isSelected = selectedTokenIndex === idx;
             const isIntervention = e.requires_intervention;
+            const expertName = e.selected_expert || 'EXPERT';
 
             return (
-              <span
+              <button
                 key={`${e.token_id}-${idx}`}
+                type="button"
                 onClick={() => onSelectToken(idx)}
-                className={`inline-block px-1 py-0.5 mx-0.5 my-0.5 rounded cursor-pointer transition-all border ${
+                className={`text-xs font-mono px-2 py-1 rounded transition-all flex items-center gap-1 border ${
                   isSelected
-                    ? 'ring-2 ring-indigo-400 font-bold border-indigo-400 bg-indigo-950/90 text-white'
+                    ? 'ring-2 ring-indigo-500 font-bold border-indigo-600 bg-indigo-50 text-indigo-900 shadow-sm'
                     : isIntervention
-                    ? 'bg-rose-950/60 text-rose-200 border-rose-800/60 hover:bg-rose-900/80'
-                    : 'bg-emerald-950/40 text-emerald-200 border-emerald-900/40 hover:bg-emerald-900/60'
+                    ? 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100 hover:border-rose-300'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
                 }`}
-                title={`Token: "${e.token}" | Route: ${e.requires_intervention ? 'EXPERT' : 'BASE'} | R(x)=${e.combined_reliability.toFixed(2)}`}
+                title={`Token "${e.token}" | Route: ${e.requires_intervention ? expertName : 'BASE'} | R(x)=${e.combined_reliability.toFixed(2)}`}
               >
-                {e.token}
-              </span>
+                <span>{e.token}</span>
+                {isIntervention ? (
+                  <span className="text-[9px] font-sans font-bold px-1 rounded bg-rose-200/80 text-rose-900">
+                    {expertName.split('_')[0]}
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-sans font-bold px-1 rounded bg-emerald-200/80 text-emerald-900">
+                    BASE
+                  </span>
+                )}
+              </button>
             );
           })
         ) : (
-          <div className="text-slate-500 text-xs italic flex items-center justify-center py-6">
-            Click "Generate Stream with ARES Pipeline" to view live response...
+          <div className="w-full text-slate-400 text-xs italic text-center py-4 font-sans">
+            Enter a prompt above and click "Generate" to watch tokens flow live...
           </div>
         )}
       </div>
 
-      {/* Selected Token Detail Card */}
-      {selectedTokenIndex !== null && generatedEvents[selectedTokenIndex] && (
-        <div className="bg-slate-950/90 border border-indigo-900/60 rounded-xl p-4 flex flex-col gap-2 font-sans">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <span className="text-indigo-400 flex items-center gap-1.5">
-              <Eye className="w-3.5 h-3.5" /> Inspecting Token #{selectedTokenIndex + 1}:
-              <code className="bg-slate-800 px-1.5 py-0.5 rounded text-white font-mono">
-                "{generatedEvents[selectedTokenIndex].token}"
-              </code>
-            </span>
-            <span className="text-slate-400 font-mono">
-              Seq Pos: {generatedEvents[selectedTokenIndex].sequence_position}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono mt-1">
-            <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">R(x) Score</span>
-              <span
-                className={`font-bold ${
-                  generatedEvents[selectedTokenIndex].is_reliable ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {generatedEvents[selectedTokenIndex].combined_reliability.toFixed(3)}
-              </span>
-            </div>
-
-            <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">Predicted Domain</span>
-              <span className="font-bold text-indigo-300 uppercase">
-                {generatedEvents[selectedTokenIndex].predicted_domain}
-              </span>
-            </div>
-
-            <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">Selected Route</span>
-              <span
-                className={`font-bold ${
-                  generatedEvents[selectedTokenIndex].requires_intervention ? 'text-rose-400' : 'text-emerald-400'
-                }`}
-              >
-                {generatedEvents[selectedTokenIndex].requires_intervention ? '🔴 EXPERT' : '🟢 BASE'}
-              </span>
-            </div>
-
-            <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">Total Latency</span>
-              <span className="font-bold text-slate-200">
-                {generatedEvents[selectedTokenIndex].total_latency_ms.toFixed(1)} ms
-              </span>
-            </div>
-          </div>
+      <div className="flex items-center justify-between text-[11px] text-slate-500 font-sans px-1">
+        <span>💡 Click any token box to freeze and inspect its ARES reliability metrics in the inspector panel.</span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-emerald-700">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Base Qwen
+          </span>
+          <span className="flex items-center gap-1 text-rose-700">
+            <span className="w-2 h-2 rounded-full bg-rose-500" /> Expert Intervention
+          </span>
         </div>
-      )}
+      </div>
     </div>
   );
 };

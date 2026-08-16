@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { InferenceEvent, TelemetrySnapshot } from './types';
 import { Header } from './components/Header';
-import { ControlPanel } from './components/ControlPanel';
 import { PipelineFlowGraph } from './components/PipelineFlowGraph';
 import { TokenStream } from './components/TokenStream';
 import { TelemetryGauges } from './components/TelemetryGauges';
@@ -31,7 +30,6 @@ export function App() {
         }
       })
       .catch(() => {
-        // Fallback for standalone frontend dev
         setEngineConnected(false);
       });
   }, []);
@@ -108,44 +106,47 @@ export function App() {
   const activeExpert = currentInspectEvent?.selected_expert ?? null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+      {/* Top Control Bar */}
       <Header
+        prompt={prompt}
+        setPrompt={setPrompt}
+        policy={policy}
+        setPolicy={setPolicy}
+        maxTokens={maxTokens}
+        setMaxTokens={setMaxTokens}
+        temperature={temperature}
+        setTemperature={setTemperature}
+        onGenerate={handleGenerate}
+        isGenerating={isGenerating}
         engineConnected={engineConnected}
         modelName={modelName}
-        activePolicy={policy}
       />
 
-      <main className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6">
-        {/* Input & Parameters */}
-        <ControlPanel
-          prompt={prompt}
-          setPrompt={setPrompt}
-          policy={policy}
-          setPolicy={setPolicy}
-          maxTokens={maxTokens}
-          setMaxTokens={setMaxTokens}
-          temperature={temperature}
-          setTemperature={setTemperature}
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
-          engineConnected={engineConnected}
-        />
-
-        {/* Transformer Explainer Flow Graph */}
+      {/* Main Visualization Canvas Container */}
+      <main className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4">
+        {/* Main Transformer Explainer-Style Pipeline Canvas */}
         <PipelineFlowGraph
           currentEvent={currentInspectEvent}
           activeExpert={activeExpert}
         />
 
-        {/* Output & Telemetry Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TokenStream
-            events={events}
-            selectedTokenIndex={selectedTokenIndex}
-            onSelectToken={(idx) => setSelectedTokenIndex(idx)}
-            isGenerating={isGenerating}
-          />
-          <TelemetryGauges snapshot={snapshot} />
+        {/* Bottom Section: Flowing Token Stream & Side Inspector */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <TokenStream
+              events={events}
+              selectedTokenIndex={selectedTokenIndex}
+              onSelectToken={(idx) => setSelectedTokenIndex(idx)}
+              isGenerating={isGenerating}
+            />
+          </div>
+          <div>
+            <TelemetryGauges
+              snapshot={snapshot}
+              selectedEvent={currentInspectEvent}
+            />
+          </div>
         </div>
       </main>
     </div>
