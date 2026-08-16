@@ -111,6 +111,7 @@ class InferenceEvent:
     attention_layer: Optional[int] = None
     attention_head: Optional[int] = None
     source_tokens: Optional[List[str]] = None
+    prompt_attention_matrix: Optional[List[List[float]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization (JSON/CSV)."""
@@ -145,6 +146,7 @@ class InferenceEvent:
             "attention_layer": self.attention_layer,
             "attention_head": self.attention_head,
             "source_tokens": self.source_tokens,
+            "prompt_attention_matrix": self.prompt_attention_matrix,
         }
 
     @classmethod

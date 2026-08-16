@@ -36,6 +36,7 @@ export type InferenceEvent = {
   attention_layer?: number | null;
   attention_head?: number | null;
   source_tokens?: string[] | null;
+  prompt_attention_matrix?: number[][] | null;
 };
 
 export type TelemetrySnapshot = {

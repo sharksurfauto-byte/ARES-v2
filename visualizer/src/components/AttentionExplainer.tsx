@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { InferenceEvent } from '../types';
-import { Layers, HelpCircle, Cpu, Network, Grid } from 'lucide-react';
+import { Layers, HelpCircle, Cpu, RefreshCw } from 'lucide-react';
 
 interface AttentionExplainerProps {
   selectedEvent: InferenceEvent | null;
@@ -28,13 +28,38 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
   const generatedEvents = events.filter((e) => !e.is_prompt_token);
   const activeEvent = selectedEvent || (generatedEvents.length > 0 ? generatedEvents[generatedEvents.length - 1] : null);
 
-  // Extract source tokens from active event or build from events list
-  const sourceTokens = activeEvent?.source_tokens || events.map((e) => e.token);
-  const activeTokenIndex = activeEvent ? activeEvent.token_index : (events.length > 0 ? events.length - 1 : 0);
+  // Full source token list for active step (prompt tokens + generated tokens so far)
+  const sourceTokens = activeEvent?.source_tokens || (events.length > 0 ? events[0]?.source_tokens || events.map(e => e.token) : []);
+  const activeTokenIndex = activeEvent ? activeEvent.sequence_position : (sourceTokens.length > 0 ? sourceTokens.length - 1 : 0);
 
-  // Construct accumulated attention rows for all tokens up to current stream
-  // Each event in events has its own attention_weights list
-  const attentionMatrix: number[][] = events.map((e) => e.attention_weights || []);
+  // Prompt attention matrix from first event
+  const promptMatrix = events.length > 0 ? events[0].prompt_attention_matrix : null;
+  const promptLen = promptMatrix ? promptMatrix.length : 0;
+
+  // Helper to fetch weight A_ij accurately
+  const getAttentionWeight = (queryIdx: number, keyIdx: number): number => {
+    if (keyIdx > queryIdx) return 0.0; // Causal mask
+
+    // Case 1: Query is a prompt token
+    if (queryIdx < promptLen && promptMatrix && promptMatrix[queryIdx]) {
+      return promptMatrix[queryIdx][keyIdx] ?? 0.0;
+    }
+
+    // Case 2: Query is a generated token
+    const genTokenIdx = queryIdx - promptLen;
+    if (genTokenIdx >= 0 && genTokenIdx < generatedEvents.length) {
+      const genEvt = generatedEvents[genTokenIdx];
+      if (genEvt.attention_weights && genEvt.attention_weights[keyIdx] !== undefined) {
+        return genEvt.attention_weights[keyIdx];
+      }
+    }
+
+    // Fallback for prompt tokens if matrix not captured
+    if (queryIdx === keyIdx) return 1.0;
+    return 0.05;
+  };
+
+  const N = sourceTokens.length;
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
@@ -107,7 +132,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
             Check "Capture Qwen Attentions" above to stream true self-attention tensors directly from PyTorch during inference.
           </span>
         </div>
-      ) : sourceTokens.length === 0 ? (
+      ) : N === 0 ? (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400 italic">
           Generate text or select a token to inspect true Qwen self-attention matrix for Layer {attnLayer}, Head {attnHead === -1 ? 'Avg' : attnHead}...
         </div>
@@ -123,20 +148,20 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
                 <span className="w-2.5 h-0.5 bg-indigo-500 inline-block" /> Query (Q) Tokens
               </span>
               <span className="flex items-center gap-1 text-purple-600 font-bold">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block" /> Attention Matrix A = softmax(QK^T / √d_k)
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block" /> Attention Matrix ({N}×{N})
               </span>
             </div>
 
-            <span className="text-[11px] text-slate-500">
-              Layer {attnLayer} · {attnHead === -1 ? 'Mean Across All Heads' : `Head ${attnHead}`}
+            <span className="text-[11px] text-slate-500 font-mono">
+              Layer {attnLayer} · {attnHead === -1 ? 'Mean Across All Heads' : `Head ${attnHead}`} · {N} Tokens
             </span>
           </div>
 
-          {/* Full Transformer Explainer SVG Grid Canvas */}
-          <div className="relative min-h-[340px] flex items-center justify-center">
+          {/* Full Transformer Explainer SVG Grid Canvas (Dynamic SVG ViewBox for Unlimited Tokens) */}
+          <div className="relative min-h-[360px] flex items-center justify-center">
             <svg
-              className="w-full h-full min-h-[320px]"
-              viewBox={`0 0 ${Math.max(860, 220 + sourceTokens.length * 36)} ${Math.max(340, 160 + sourceTokens.length * 28)}`}
+              className="w-full h-full min-h-[340px]"
+              viewBox={`0 0 ${Math.max(900, 260 + N * 34)} ${Math.max(360, 160 + N * 28)}`}
             >
               <defs>
                 <linearGradient id="purple-flow" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -146,7 +171,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
               </defs>
 
               {/* ─── LEFT: TOKEN LIST WITH EMBEDDINGS ─── */}
-              {sourceTokens.slice(0, 16).map((tok, idx) => {
+              {sourceTokens.map((tok, idx) => {
                 const y = 140 + idx * 26;
                 const isSelected = activeTokenIndex === idx;
 
@@ -189,7 +214,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
               })}
 
               {/* ─── KEY TOKENS HEADER (TOP CURVED RED LINES) ─── */}
-              {sourceTokens.slice(0, 14).map((tok, kIdx) => {
+              {sourceTokens.map((tok, kIdx) => {
                 const kX = 240 + kIdx * 32;
                 return (
                   <g key={`key-col-${kIdx}`}>
@@ -220,7 +245,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
               })}
 
               {/* ─── QUERY TOKENS SIDE (LEFT CURVED BLUE LINES) ─── */}
-              {sourceTokens.slice(0, 14).map((tok, qIdx) => {
+              {sourceTokens.map((tok, qIdx) => {
                 const qY = 100 + qIdx * 26;
                 const isSelectedRow = activeTokenIndex === qIdx;
 
@@ -251,23 +276,20 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
                 );
               })}
 
-              {/* ─── THE TRIANGULAR ATTENTION MATRIX GRID OF DOTS ─── */}
-              {sourceTokens.slice(0, 14).map((_, qIdx) => {
+              {/* ─── THE DYNAMIC $N \times N$ TRIANGULAR ATTENTION MATRIX GRID ─── */}
+              {sourceTokens.map((_, qIdx) => {
                 const qY = 100 + qIdx * 26;
                 const isSelectedRow = activeTokenIndex === qIdx;
-
-                // Extract attention weights row for query token qIdx
-                const rowWeights = attentionMatrix[qIdx] || (activeEvent?.token_index === qIdx ? activeEvent.attention_weights : []);
 
                 return sourceTokens.slice(0, qIdx + 1).map((_, kIdx) => {
                   const kX = 240 + kIdx * 32;
 
-                  // Weight value A_ij
-                  const weight = rowWeights && rowWeights[kIdx] !== undefined ? rowWeights[kIdx] : 0.0;
+                  // Weight value A_ij from getAttentionWeight
+                  const weight = getAttentionWeight(qIdx, kIdx);
 
-                  // Scaling dot size and opacity
-                  const r = Math.max(3, Math.min(10, 3 + weight * 12));
-                  const opacity = Math.max(0.1, Math.min(1.0, weight * 3.5));
+                  // Radius & opacity scaling: Non-zero weights are clearly visible
+                  const r = Math.max(3.5, Math.min(11, 3.5 + Math.sqrt(weight) * 9.5));
+                  const opacity = Math.max(0.15, Math.min(1.0, weight * 2.8));
                   const isHovered = hoveredCell?.queryIdx === qIdx && hoveredCell?.keyIdx === kIdx;
 
                   return (
@@ -285,7 +307,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
                         cx={kX}
                         cy={qY}
                         r={r}
-                        fill="#6366f1"
+                        fill="#4f46e5"
                         opacity={opacity}
                       />
 
@@ -307,14 +329,14 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
               })}
 
               {/* ─── RIGHT: OUT / MLP FLUID FLOW RIBBONS ─── */}
-              {sourceTokens.slice(0, 14).map((tok, idx) => {
+              {sourceTokens.map((_, idx) => {
                 const qY = 100 + idx * 26;
                 const outX = 240 + idx * 32 + 20;
 
                 return (
                   <path
                     key={`out-flow-${idx}`}
-                    d={`M ${outX} ${qY} C ${outX + 60} ${qY}, ${outX + 60} 180, 720 180`}
+                    d={`M ${outX} ${qY} C ${outX + 60} ${qY}, ${outX + 60} 180, ${240 + N * 32 + 60} 180`}
                     stroke="url(#purple-flow)"
                     strokeWidth="1.5"
                     opacity="0.35"
@@ -324,7 +346,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
               })}
 
               {/* MLP / Output Container */}
-              <g transform="translate(720, 140)">
+              <g transform={`translate(${240 + N * 32 + 60}, 140)`}>
                 <rect width="70" height="80" rx="10" fill="#faf5ff" stroke="#c084fc" strokeWidth="2" />
                 <text x="35" y="32" textAnchor="middle" fill="#7e22ce" fontSize="10" fontWeight="700">
                   MLP Block
@@ -335,8 +357,12 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
               </g>
 
               {/* Output Arrow to ARES Representation */}
-              <path d="M 790 180 L 830 180" stroke="#a855f7" strokeWidth="2.5" />
-              <circle cx="830" cy="180" r="4" fill="#a855f7" />
+              <path
+                d={`M ${240 + N * 32 + 130} 180 L ${240 + N * 32 + 170} 180`}
+                stroke="#a855f7"
+                strokeWidth="2.5"
+              />
+              <circle cx={240 + N * 32 + 170} cy="180" r="4" fill="#a855f7" />
             </svg>
           </div>
 
@@ -363,7 +389,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
       <div className="bg-slate-100 border border-slate-200 rounded p-2.5 text-[11px] font-mono text-slate-600 flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-slate-700">
           <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-          <span>Qwen Self-Attention Matrix</span>
+          <span>Qwen Self-Attention Matrix ({N}×{N})</span>
         </span>
         <span>→</span>
         <span className="text-indigo-700 font-bold">Layer -1 Rep (3584d)</span>

@@ -46,6 +46,31 @@ def _extract_attention_weights(
         return None, None
 
 
+def _extract_prompt_attention_matrix(
+    attentions_tuple: Any,
+    attn_layer: int,
+    attn_head: int,
+) -> Optional[List[List[float]]]:
+    """Helper to extract full 2D self-attention matrix for prompt tokens."""
+    if attentions_tuple is None or not attentions_tuple:
+        return None
+    try:
+        safe_layer = max(0, min(attn_layer, len(attentions_tuple) - 1))
+        layer_attn = attentions_tuple[safe_layer]  # (1, num_heads, P, P)
+        num_heads = layer_attn.shape[1]
+
+        if attn_head >= 0:
+            safe_head = max(0, min(attn_head, num_heads - 1))
+            matrix_attn = layer_attn[0, safe_head, :, :]
+        else:
+            matrix_attn = layer_attn[0, :, :, :].mean(dim=0)
+
+        matrix_np = matrix_attn.float().cpu().numpy()
+        return [[float(x) for x in row] for row in matrix_np]
+    except Exception:
+        return None
+
+
 def generate_stream(
     engine: ARESInferenceEngine,
     prompt: str,
@@ -121,6 +146,7 @@ def generate_stream(
     attn_weights, source_toks = _extract_attention_weights(
         engine, attentions_tuple, attn_layer, attn_head, input_ids
     )
+    prompt_matrix = _extract_prompt_attention_matrix(attentions_tuple, attn_layer, attn_head)
 
     # Extract hidden state from BASE forward
     hidden_state = engine.get_hidden_state(input_ids, attention_mask)
@@ -175,6 +201,7 @@ def generate_stream(
         attention_layer=attn_layer if collect_attentions else None,
         attention_head=attn_head if collect_attentions else None,
         source_tokens=source_toks,
+        prompt_attention_matrix=prompt_matrix,
     )
     yield first_event
 
