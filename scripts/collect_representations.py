@@ -4,8 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add src to path if running directly
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Mask preinstalled incompatible torchao version on Kaggle
+sys.modules["torchao"] = None
 
 import torch
 from ares.adaptation import (
@@ -72,10 +72,10 @@ def generate_synthetic_multi_domain_samples(
             template, task_type = random.choice(domain_templates)
 
             if domain == "general":
-                if "country" in template:
+                if "{country}" in template:
                     country, capital = random.choice(countries)
                     text = template.format(country=country, capital=capital)
-                elif "animal" in template:
+                elif "{animal}" in template:
                     animal, atype, trait = random.choice(animals)
                     text = template.format(animal=animal, type=atype, trait=trait)
                 else:
@@ -83,9 +83,9 @@ def generate_synthetic_multi_domain_samples(
                     text = template.format(event=event, year=year)
 
             elif domain == "math":
-                if "problem" in template:
+                if "{problem}" in template:
                     text = template.format(problem=random.choice(math_problems))
-                elif "expr" in template:
+                elif "{expr}" in template:
                     text = template.format(expr=random.choice(math_problems))
                 else:
                     a, b = random.randint(1, 20), random.randint(1, 20)
@@ -96,15 +96,17 @@ def generate_synthetic_multi_domain_samples(
 
             elif domain == "code":
                 task = random.choice(code_tasks)
-                if "lib" in template:
+                if "{lib}" in template:
                     text = template.format(task=task, lib=random.choice(["standard lib", "numpy", "pandas"]))
+                elif "{code}" in template:
+                    text = template.format(code=random.choice(["def foo(): pass", "x = [1, 2, 3]"]))
                 else:
                     text = template.format(task=task)
 
             elif domain == "science":
-                if "concept" in template:
+                if "{concept}" in template:
                     text = template.format(concept=random.choice(concepts))
-                elif "phenomenon" in template:
+                elif "{phenomenon}" in template:
                     text = template.format(phenomenon=random.choice(phenomena))
                 else:
                     text = template.format(effect=random.choice(["rain", "earthquake", "tides"]))
