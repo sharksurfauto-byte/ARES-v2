@@ -41,14 +41,37 @@ class DummyTokenizer:
         }
 
 
+class DummyConfig(dict):
+    """PEFT-compatible config dictionary for dummy testing."""
+
+    def __init__(self, vocab_size: int = 10, hidden_size: int = 8):
+        super().__init__(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            _name_or_path="dummy_model",
+            model_type="dummy",
+        )
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+        self._name_or_path = "dummy_model"
+        self.model_type = "dummy"
+
+    def to_dict(self):
+        return dict(self)
+
+
 class DummyCausalLM(nn.Module):
     """Mock Causal LM for testing LoRA wrapper initialization."""
 
     def __init__(self):
         super().__init__()
+        self.config = DummyConfig()
         self.q_proj = nn.Linear(8, 8)
         self.v_proj = nn.Linear(8, 8)
         self.lm_head = nn.Linear(8, 10)
+
+    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+        return {"input_ids": input_ids, **kwargs}
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         batch, seq = input_ids.shape
