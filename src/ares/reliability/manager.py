@@ -99,8 +99,8 @@ class ReliabilityManager(nn.Module):
 
         # 1. Run GRM
         grm_out = self.grm(representation, layer_idx=layer_idx)
-        r_global = grm_out["feasibility"][0, 0].item()
-        domain_probs_raw = grm_out["domain_probs"][0].cpu().numpy()
+        r_global = float(grm_out["feasibility"][0, 0].item())
+        domain_probs_raw = grm_out["domain_probs"][0].float().cpu().numpy()
 
         domain_probs = {
             domain: float(domain_probs_raw[i])

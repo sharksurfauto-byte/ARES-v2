@@ -270,8 +270,8 @@ class RepresentationCollector:
                 attention_mask=att_mask,
             )
 
-            representation = pooled[0].detach().cpu().numpy().astype(np.float32)
-            logits_np = last_token_logits.detach().cpu().numpy().astype(np.float32)
+            representation = pooled[0].detach().float().cpu().numpy().astype(np.float32)
+            logits_np = last_token_logits.detach().float().cpu().numpy().astype(np.float32)
 
             record = RepresentationRecord(
                 sample_id=sample.sample_id,
