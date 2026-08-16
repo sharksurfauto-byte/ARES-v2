@@ -19,12 +19,31 @@ from ares.utils.config import load_config
 from ares.utils.environment import set_seed, resolve_device
 
 
+class DummyConfig(dict):
+    """PEFT-compatible config dictionary for dummy testing."""
+
+    def __init__(self, vocab_size: int = 1000, hidden_size: int = 256):
+        super().__init__(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            _name_or_path="dummy_model",
+            model_type="dummy",
+        )
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+        self._name_or_path = "dummy_model"
+        self.model_type = "dummy"
+
+    def to_dict(self):
+        return dict(self)
+
+
 class DummyCausalLM(nn.Module):
     """Dummy causal LM for local CPU testing and validation."""
 
     def __init__(self, vocab_size: int = 1000, hidden_dim: int = 256):
         super().__init__()
-        self.config = type("Config", (), {"vocab_size": vocab_size, "hidden_size": hidden_dim})()
+        self.config = DummyConfig(vocab_size=vocab_size, hidden_size=hidden_dim)
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
         self.q_proj = nn.Linear(hidden_dim, hidden_dim)
         self.k_proj = nn.Linear(hidden_dim, hidden_dim)
