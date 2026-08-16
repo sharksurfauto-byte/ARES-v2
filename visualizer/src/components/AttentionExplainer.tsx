@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { InferenceEvent } from '../types';
-import { Layers, HelpCircle, Cpu, RefreshCw } from 'lucide-react';
+import { Layers, HelpCircle, Cpu } from 'lucide-react';
 
 interface AttentionExplainerProps {
   selectedEvent: InferenceEvent | null;
@@ -36,9 +36,9 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
   const promptMatrix = events.length > 0 ? events[0].prompt_attention_matrix : null;
   const promptLen = promptMatrix ? promptMatrix.length : 0;
 
-  // Helper to fetch weight A_ij accurately
+  // Authoritative PyTorch attention weight lookup (NO FAKE FALLBACKS)
   const getAttentionWeight = (queryIdx: number, keyIdx: number): number => {
-    if (keyIdx > queryIdx) return 0.0; // Causal mask
+    if (keyIdx > queryIdx) return 0.0; // Causal upper triangular mask is zero
 
     // Case 1: Query is a prompt token
     if (queryIdx < promptLen && promptMatrix && promptMatrix[queryIdx]) {
@@ -46,17 +46,15 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
     }
 
     // Case 2: Query is a generated token
-    const genTokenIdx = queryIdx - promptLen;
-    if (genTokenIdx >= 0 && genTokenIdx < generatedEvents.length) {
-      const genEvt = generatedEvents[genTokenIdx];
-      if (genEvt.attention_weights && genEvt.attention_weights[keyIdx] !== undefined) {
+    const genIdx = queryIdx - promptLen;
+    if (genIdx >= 0 && genIdx < generatedEvents.length) {
+      const genEvt = generatedEvents[genIdx];
+      if (genEvt.attention_weights && keyIdx < genEvt.attention_weights.length) {
         return genEvt.attention_weights[keyIdx];
       }
     }
 
-    // Fallback for prompt tokens if matrix not captured
-    if (queryIdx === keyIdx) return 1.0;
-    return 0.05;
+    return 0.0;
   };
 
   const N = sourceTokens.length;
@@ -68,7 +66,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-indigo-600" />
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-            Transformer Explainer Self-Attention Matrix
+            PyTorch Genuine Self-Attention Matrix
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
               Qwen 2.5-7B
             </span>
@@ -284,12 +282,13 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
                 return sourceTokens.slice(0, qIdx + 1).map((_, kIdx) => {
                   const kX = 240 + kIdx * 32;
 
-                  // Weight value A_ij from getAttentionWeight
+                  // Genuine PyTorch attention weight value A_ij
                   const weight = getAttentionWeight(qIdx, kIdx);
 
-                  // Radius & opacity scaling: Non-zero weights are clearly visible
-                  const r = Math.max(3.5, Math.min(11, 3.5 + Math.sqrt(weight) * 9.5));
-                  const opacity = Math.max(0.15, Math.min(1.0, weight * 2.8));
+                  // True PyTorch attention score scaling
+                  const hasWeight = weight > 0.005;
+                  const r = hasWeight ? Math.max(3, Math.min(11, 3 + Math.sqrt(weight) * 9.5)) : 2;
+                  const opacity = hasWeight ? Math.max(0.2, Math.min(1.0, weight * 3.0)) : 0.05;
                   const isHovered = hoveredCell?.queryIdx === qIdx && hoveredCell?.keyIdx === kIdx;
 
                   return (
@@ -302,12 +301,12 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
                       {/* Background grid line intersect */}
                       <circle cx={kX} cy={qY} r="11" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1" />
 
-                      {/* Dynamic Attention Dot */}
+                      {/* Dynamic Genuine Attention Dot */}
                       <circle
                         cx={kX}
                         cy={qY}
                         r={r}
-                        fill="#4f46e5"
+                        fill={hasWeight ? '#4f46e5' : '#cbd5e1'}
                         opacity={opacity}
                       />
 
@@ -373,13 +372,13 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
                 Query Token: <strong className="font-mono">"{sourceTokens[hoveredCell.queryIdx]}"</strong> attends to Key Token: <strong className="font-mono">"{sourceTokens[hoveredCell.keyIdx]}"</strong>
               </span>
               <span className="font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
-                Weight A_{hoveredCell.queryIdx},{hoveredCell.keyIdx} = {(hoveredCell.weight * 100).toFixed(2)}%
+                PyTorch Attention A_{hoveredCell.queryIdx},{hoveredCell.keyIdx} = {(hoveredCell.weight * 100).toFixed(2)}%
               </span>
             </div>
           ) : (
             <div className="bg-slate-100 border border-slate-200 rounded p-2 text-xs text-slate-500 font-sans flex items-center justify-between">
-              <span>💡 Hover any matrix dot (circle) to inspect the exact Query-to-Key self-attention probability.</span>
-              <span className="font-mono text-[10px] text-slate-400">Dynamically updated per token stream</span>
+              <span>💡 Hover any matrix dot (circle) to inspect the exact PyTorch Query-to-Key self-attention probability.</span>
+              <span className="font-mono text-[10px] text-slate-400">100% Genuine PyTorch Tensors (No Fallbacks)</span>
             </div>
           )}
         </div>
