@@ -255,11 +255,19 @@ class RepresentationCollector:
             if layer_hidden.ndim == 2:
                 layer_hidden = layer_hidden.unsqueeze(1)
 
+            # Match attention_mask shape to layer_hidden shape
+            att_mask = inputs.get("attention_mask") if isinstance(inputs, dict) else None
+            if att_mask is not None and att_mask.shape[-1] != layer_hidden.shape[1]:
+                if att_mask.shape[-1] > layer_hidden.shape[1]:
+                    att_mask = att_mask[:, :layer_hidden.shape[1]]
+                else:
+                    att_mask = None
+
             # Pool across sequence dimension
             pooled = pool_hidden_states(
                 layer_hidden,
                 method=self.pooling_method,
-                attention_mask=inputs.get("attention_mask") if isinstance(inputs, dict) else None,
+                attention_mask=att_mask,
             )
 
             representation = pooled[0].detach().cpu().numpy().astype(np.float32)
