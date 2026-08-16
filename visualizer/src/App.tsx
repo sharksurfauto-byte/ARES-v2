@@ -5,6 +5,8 @@ import { PipelineFlowGraph } from './components/PipelineFlowGraph';
 import { AttentionExplainer } from './components/AttentionExplainer';
 import { TokenStream } from './components/TokenStream';
 import { CleanOutput } from './components/CleanOutput';
+import { TelemetryGauges } from './components/TelemetryGauges';
+import { Network, Layers, Sparkles } from 'lucide-react';
 
 export function App() {
   const [prompt, setPrompt] = useState('Solve step-by-step: If 3x + 7 = 22, what is x?');
