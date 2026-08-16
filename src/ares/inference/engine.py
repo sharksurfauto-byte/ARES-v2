@@ -189,6 +189,7 @@ class ARESInferenceEngine:
         # 3. Load GRM + LRM → ReliabilityManager
         print("Loading reliability models (GRM + LRM)...")
         probe_num_layers = max(32, num_layers)
+        dtype_attr = getattr(torch, torch_dtype) if isinstance(torch_dtype, str) else torch_dtype
 
         self.grm = GlobalReliabilityModel(
             input_dim=self.model.config.hidden_size,
@@ -198,7 +199,7 @@ class ARESInferenceEngine:
             dropout=0.1,
             use_layer_depth_embedding=True,
             num_layers=probe_num_layers,
-        ).to(self.input_device)
+        ).to(device=self.input_device, dtype=dtype_attr)
 
         self.lrm = LocalReliabilityModel(
             input_dim=self.model.config.hidden_size,
@@ -207,7 +208,7 @@ class ARESInferenceEngine:
             dropout=0.1,
             use_layer_depth_embedding=True,
             num_layers=probe_num_layers,
-        ).to(self.input_device)
+        ).to(device=self.input_device, dtype=dtype_attr)
 
         if production_mode and all_exist:
             print(f"  Loading GRM from {grm_checkpoint}...")

@@ -84,6 +84,11 @@ class GlobalReliabilityModel(nn.Module):
         if x.ndim == 1:
             x = x.unsqueeze(0)
 
+        # Cast input dtype to match module parameter dtype if mismatched
+        target_dtype = self.layer_norm.weight.dtype
+        if x.dtype != target_dtype:
+            x = x.to(dtype=target_dtype)
+
         # 1. LayerNorm standardization
         h_norm = self.layer_norm(x)
 
