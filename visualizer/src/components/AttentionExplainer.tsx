@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { InferenceEvent } from '../types';
-import { Eye, Grid, Network, Layers, Cpu, HelpCircle } from 'lucide-react';
+import { Layers, HelpCircle, Cpu, Network, Grid } from 'lucide-react';
 
 interface AttentionExplainerProps {
   selectedEvent: InferenceEvent | null;
@@ -23,26 +23,31 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
   collectAttentions,
   setCollectAttentions,
 }) => {
-  const [viewMode, setViewMode] = useState<'arcs' | 'matrix'>('arcs');
+  const [hoveredCell, setHoveredCell] = useState<{ queryIdx: number; keyIdx: number; weight: number } | null>(null);
 
   const generatedEvents = events.filter((e) => !e.is_prompt_token);
   const activeEvent = selectedEvent || (generatedEvents.length > 0 ? generatedEvents[generatedEvents.length - 1] : null);
 
-  const attnWeights = activeEvent?.attention_weights ?? null;
-  const sourceTokens = activeEvent?.source_tokens ?? null;
+  // Extract source tokens from active event or build from events list
+  const sourceTokens = activeEvent?.source_tokens || events.map((e) => e.token);
+  const activeTokenIndex = activeEvent ? activeEvent.token_index : (events.length > 0 ? events.length - 1 : 0);
+
+  // Construct accumulated attention rows for all tokens up to current stream
+  // Each event in events has its own attention_weights list
+  const attentionMatrix: number[][] = events.map((e) => e.attention_weights || []);
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
-      {/* Top Header & Controls */}
+      {/* Top Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-indigo-600" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-            Qwen 2.5-7B Self-Attention Interpretability
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+            Transformer Explainer Self-Attention Matrix
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+              Qwen 2.5-7B
+            </span>
           </h2>
-          <span className="text-[10px] text-slate-400 font-mono">
-            softmax(QK^T / √d_k)
-          </span>
         </div>
 
         <div className="flex items-center gap-4 text-xs">
@@ -91,32 +96,10 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
               ))}
             </select>
           </div>
-
-          {/* View Mode Buttons */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setViewMode('arcs')}
-              className={`px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors ${
-                viewMode === 'arcs' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <Network className="w-3 h-3" /> Arcs
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('matrix')}
-              className={`px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors ${
-                viewMode === 'matrix' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <Grid className="w-3 h-3" /> Matrix
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Main Attention Display Area */}
+      {/* Main Transformer Explainer Interactive Canvas */}
       {!collectAttentions ? (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
           <HelpCircle className="w-5 h-5 text-indigo-400" />
@@ -124,132 +107,255 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
             Check "Capture Qwen Attentions" above to stream true self-attention tensors directly from PyTorch during inference.
           </span>
         </div>
-      ) : !activeEvent || !attnWeights || !sourceTokens ? (
+      ) : sourceTokens.length === 0 ? (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400 italic">
-          Generate text or select a token to inspect true Qwen self-attention weights for Layer {attnLayer}, Head {attnHead === -1 ? 'Avg' : attnHead}...
+          Generate text or select a token to inspect true Qwen self-attention matrix for Layer {attnLayer}, Head {attnHead === -1 ? 'Avg' : attnHead}...
         </div>
-      ) : viewMode === 'arcs' ? (
-        /* Token-to-Token Arc Visualizer */
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-col gap-3 relative overflow-hidden">
+      ) : (
+        <div className="bg-slate-50/70 border border-slate-200 rounded-lg p-4 flex flex-col gap-3 relative overflow-x-auto">
+          {/* Header Legend */}
           <div className="flex items-center justify-between text-xs text-slate-600 font-mono border-b border-slate-200 pb-2">
-            <span>
-              Inspecting Token: <strong className="text-indigo-700 font-mono font-bold">"{activeEvent.token}"</strong>
-            </span>
-            <span>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1 text-rose-600 font-bold">
+                <span className="w-2.5 h-0.5 bg-rose-500 inline-block" /> Key (K) Tokens
+              </span>
+              <span className="flex items-center gap-1 text-indigo-600 font-bold">
+                <span className="w-2.5 h-0.5 bg-indigo-500 inline-block" /> Query (Q) Tokens
+              </span>
+              <span className="flex items-center gap-1 text-purple-600 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block" /> Attention Matrix A = softmax(QK^T / √d_k)
+              </span>
+            </div>
+
+            <span className="text-[11px] text-slate-500">
               Layer {attnLayer} · {attnHead === -1 ? 'Mean Across All Heads' : `Head ${attnHead}`}
             </span>
           </div>
 
-          {/* SVG Arc Diagram */}
-          <div className="relative min-h-[160px] flex items-center justify-center">
-            <svg className="w-full h-full min-h-[140px]" viewBox="0 0 800 140">
-              {/* Render Token Boxes along bottom line */}
-              {sourceTokens.map((tok, idx) => {
-                const weight = attnWeights[idx] || 0.0;
-                const totalToks = sourceTokens.length;
-                const step = 720 / Math.max(1, totalToks - 1);
-                const startX = 40 + idx * step;
-                const activeX = 40 + (totalToks - 1) * step;
+          {/* Full Transformer Explainer SVG Grid Canvas */}
+          <div className="relative min-h-[340px] flex items-center justify-center">
+            <svg
+              className="w-full h-full min-h-[320px]"
+              viewBox={`0 0 ${Math.max(860, 220 + sourceTokens.length * 36)} ${Math.max(340, 160 + sourceTokens.length * 28)}`}
+            >
+              <defs>
+                <linearGradient id="purple-flow" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#c084fc" stopOpacity="0.9" />
+                </linearGradient>
+              </defs>
 
-                const isTarget = idx === totalToks - 1;
-                const opacity = Math.max(0.1, Math.min(1.0, weight * 4));
-                const strokeWidth = Math.max(0.5, Math.min(4.5, weight * 8));
+              {/* ─── LEFT: TOKEN LIST WITH EMBEDDINGS ─── */}
+              {sourceTokens.slice(0, 16).map((tok, idx) => {
+                const y = 140 + idx * 26;
+                const isSelected = activeTokenIndex === idx;
 
                 return (
-                  <g key={`${tok}-${idx}`}>
-                    {/* Connection Arc to Active Token */}
-                    {!isTarget && weight > 0.01 && (
-                      <path
-                        d={`M ${startX} 110 C ${startX} ${110 - Math.min(90, Math.abs(activeX - startX) * 0.35)}, ${activeX} ${110 - Math.min(90, Math.abs(activeX - startX) * 0.35)}, ${activeX} 110`}
-                        stroke="#4f46e5"
-                        strokeWidth={strokeWidth}
-                        opacity={opacity}
-                        fill="none"
-                      />
-                    )}
-
-                    {/* Weight percentage label over prominent tokens */}
-                    {!isTarget && weight > 0.12 && (
-                      <text
-                        x={(startX + activeX) / 2}
-                        y={105 - Math.min(75, Math.abs(activeX - startX) * 0.35)}
-                        textAnchor="middle"
-                        fill="#4f46e5"
-                        fontSize="9"
-                        fontWeight="700"
-                        fontFamily="mono"
-                      >
-                        {(weight * 100).toFixed(0)}%
-                      </text>
-                    )}
-
-                    {/* Token Box */}
-                    <rect
-                      x={startX - 18}
-                      y="110"
-                      width="36"
-                      height="24"
-                      rx="4"
-                      fill={isTarget ? '#4f46e5' : weight > 0.15 ? '#e0e7ff' : '#ffffff'}
-                      stroke={isTarget ? '#4f46e5' : weight > 0.15 ? '#6366f1' : '#cbd5e1'}
-                      strokeWidth={isTarget ? '2' : '1'}
-                    />
+                  <g key={`left-tok-${idx}`}>
+                    {/* Token Label */}
                     <text
-                      x={startX}
-                      y="125"
-                      textAnchor="middle"
-                      fill={isTarget ? '#ffffff' : '#0f172a'}
+                      x="90"
+                      y={y + 4}
+                      textAnchor="end"
+                      fill={isSelected ? '#4f46e5' : '#334155'}
+                      fontSize="10"
+                      fontFamily="mono"
+                      fontWeight={isSelected ? '700' : '500'}
+                    >
+                      {tok.length > 12 ? tok.substring(0, 10) + '..' : tok}
+                    </text>
+
+                    {/* Embedding Dot */}
+                    <circle cx="102" cy={y} r="3" fill={isSelected ? '#4f46e5' : '#94a3b8'} />
+
+                    {/* Ribbon to Q, K, V projections */}
+                    <path
+                      d={`M 105 ${y} C 130 ${y}, 130 ${140 + idx * 26}, 150 ${140 + idx * 26}`}
+                      stroke={isSelected ? '#6366f1' : '#cbd5e1'}
+                      strokeWidth={isSelected ? '2' : '1'}
+                      opacity={isSelected ? '0.9' : '0.4'}
+                      fill="none"
+                    />
+
+                    {/* Q / K / V Projection Badge */}
+                    <g transform={`translate(150, ${y - 8})`}>
+                      <rect width="28" height="16" rx="3" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1" />
+                      <text x="14" y="11" textAnchor="middle" fill="#64748b" fontSize="8" fontWeight="700">
+                        Q K V
+                      </text>
+                    </g>
+                  </g>
+                );
+              })}
+
+              {/* ─── KEY TOKENS HEADER (TOP CURVED RED LINES) ─── */}
+              {sourceTokens.slice(0, 14).map((tok, kIdx) => {
+                const kX = 240 + kIdx * 32;
+                return (
+                  <g key={`key-col-${kIdx}`}>
+                    {/* Curved Red Line from K Projection to Matrix Top */}
+                    <path
+                      d={`M 178 ${140 + kIdx * 26} C 210 ${140 + kIdx * 26}, 210 70, ${kX} 70`}
+                      stroke="#f43f5e"
+                      strokeWidth="1.5"
+                      opacity="0.6"
+                      fill="none"
+                    />
+
+                    {/* Top Key Token Text */}
+                    <text
+                      x={kX}
+                      y="65"
+                      textAnchor="end"
+                      transform={`rotate(-45 ${kX} 65)`}
+                      fill="#e11d48"
                       fontSize="9"
                       fontFamily="mono"
                       fontWeight="600"
                     >
-                      {tok.trim() || tok}
+                      {tok}
                     </text>
                   </g>
                 );
               })}
+
+              {/* ─── QUERY TOKENS SIDE (LEFT CURVED BLUE LINES) ─── */}
+              {sourceTokens.slice(0, 14).map((tok, qIdx) => {
+                const qY = 100 + qIdx * 26;
+                const isSelectedRow = activeTokenIndex === qIdx;
+
+                return (
+                  <g key={`query-row-${qIdx}`}>
+                    {/* Curved Blue Line from Q Projection to Matrix Left */}
+                    <path
+                      d={`M 178 ${140 + qIdx * 26} C 200 ${140 + qIdx * 26}, 200 ${qY}, 225 ${qY}`}
+                      stroke={isSelectedRow ? '#4f46e5' : '#6366f1'}
+                      strokeWidth={isSelectedRow ? '2.5' : '1.5'}
+                      opacity={isSelectedRow ? '1.0' : '0.5'}
+                      fill="none"
+                    />
+
+                    {/* Left Query Token Text */}
+                    <text
+                      x="220"
+                      y={qY + 3}
+                      textAnchor="end"
+                      fill={isSelectedRow ? '#4f46e5' : '#475569'}
+                      fontSize="9"
+                      fontFamily="mono"
+                      fontWeight={isSelectedRow ? '700' : '500'}
+                    >
+                      {tok}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* ─── THE TRIANGULAR ATTENTION MATRIX GRID OF DOTS ─── */}
+              {sourceTokens.slice(0, 14).map((_, qIdx) => {
+                const qY = 100 + qIdx * 26;
+                const isSelectedRow = activeTokenIndex === qIdx;
+
+                // Extract attention weights row for query token qIdx
+                const rowWeights = attentionMatrix[qIdx] || (activeEvent?.token_index === qIdx ? activeEvent.attention_weights : []);
+
+                return sourceTokens.slice(0, qIdx + 1).map((_, kIdx) => {
+                  const kX = 240 + kIdx * 32;
+
+                  // Weight value A_ij
+                  const weight = rowWeights && rowWeights[kIdx] !== undefined ? rowWeights[kIdx] : 0.0;
+
+                  // Scaling dot size and opacity
+                  const r = Math.max(3, Math.min(10, 3 + weight * 12));
+                  const opacity = Math.max(0.1, Math.min(1.0, weight * 3.5));
+                  const isHovered = hoveredCell?.queryIdx === qIdx && hoveredCell?.keyIdx === kIdx;
+
+                  return (
+                    <g
+                      key={`cell-${qIdx}-${kIdx}`}
+                      className="cursor-pointer transition-all"
+                      onMouseEnter={() => setHoveredCell({ queryIdx: qIdx, keyIdx: kIdx, weight })}
+                      onMouseLeave={() => setHoveredCell(null)}
+                    >
+                      {/* Background grid line intersect */}
+                      <circle cx={kX} cy={qY} r="11" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1" />
+
+                      {/* Dynamic Attention Dot */}
+                      <circle
+                        cx={kX}
+                        cy={qY}
+                        r={r}
+                        fill="#6366f1"
+                        opacity={opacity}
+                      />
+
+                      {/* Active Row or Hover Highlight Ring */}
+                      {(isSelectedRow || isHovered) && (
+                        <circle
+                          cx={kX}
+                          cy={qY}
+                          r={r + 3}
+                          fill="none"
+                          stroke={isHovered ? '#4f46e5' : '#818cf8'}
+                          strokeWidth="2"
+                          className="animate-pulse"
+                        />
+                      )}
+                    </g>
+                  );
+                });
+              })}
+
+              {/* ─── RIGHT: OUT / MLP FLUID FLOW RIBBONS ─── */}
+              {sourceTokens.slice(0, 14).map((tok, idx) => {
+                const qY = 100 + idx * 26;
+                const outX = 240 + idx * 32 + 20;
+
+                return (
+                  <path
+                    key={`out-flow-${idx}`}
+                    d={`M ${outX} ${qY} C ${outX + 60} ${qY}, ${outX + 60} 180, 720 180`}
+                    stroke="url(#purple-flow)"
+                    strokeWidth="1.5"
+                    opacity="0.35"
+                    fill="none"
+                  />
+                );
+              })}
+
+              {/* MLP / Output Container */}
+              <g transform="translate(720, 140)">
+                <rect width="70" height="80" rx="10" fill="#faf5ff" stroke="#c084fc" strokeWidth="2" />
+                <text x="35" y="32" textAnchor="middle" fill="#7e22ce" fontSize="10" fontWeight="700">
+                  MLP Block
+                </text>
+                <text x="35" y="52" textAnchor="middle" fill="#9333ea" fontSize="8" fontFamily="mono">
+                  Weighted Out
+                </text>
+              </g>
+
+              {/* Output Arrow to ARES Representation */}
+              <path d="M 790 180 L 830 180" stroke="#a855f7" strokeWidth="2.5" />
+              <circle cx="830" cy="180" r="4" fill="#a855f7" />
             </svg>
           </div>
 
-          {/* Top Attended Tokens Bar */}
-          <div className="flex items-center gap-2 text-xs font-mono bg-white p-2 rounded border border-slate-200">
-            <span className="text-slate-400 text-[10px]">Top Attention Targets:</span>
-            {sourceTokens
-              .map((tok, i) => ({ tok, w: attnWeights[i] || 0 }))
-              .sort((a, b) => b.w - a.w)
-              .slice(0, 4)
-              .map((item, idx) => (
-                <span
-                  key={idx}
-                  className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-indigo-800 font-semibold"
-                >
-                  "{item.tok}" ({(item.w * 100).toFixed(1)}%)
-                </span>
-              ))}
-          </div>
-        </div>
-      ) : (
-        /* Self-Attention Matrix View */
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-col gap-2">
-          <span className="text-xs font-semibold text-slate-700">
-            Layer {attnLayer} Attention Vector for Token "{activeEvent.token}"
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {sourceTokens.map((tok, idx) => {
-              const w = attnWeights[idx] || 0;
-              const intensity = Math.min(100, Math.round(w * 100 * 2.5));
-              return (
-                <div
-                  key={idx}
-                  className="flex flex-col items-center p-1.5 rounded border border-slate-200 text-[10px] font-mono"
-                  style={{ backgroundColor: `rgba(99, 102, 241, ${Math.max(0.05, w)})` }}
-                >
-                  <span className="font-bold text-slate-900">{tok}</span>
-                  <span className="text-slate-600">{(w * 100).toFixed(0)}%</span>
-                </div>
-              );
-            })}
-          </div>
+          {/* Interactive Cell Hover Detail Tooltip */}
+          {hoveredCell ? (
+            <div className="bg-indigo-50 border border-indigo-200 rounded p-2.5 text-xs text-indigo-900 flex items-center justify-between font-sans">
+              <span>
+                Query Token: <strong className="font-mono">"{sourceTokens[hoveredCell.queryIdx]}"</strong> attends to Key Token: <strong className="font-mono">"{sourceTokens[hoveredCell.keyIdx]}"</strong>
+              </span>
+              <span className="font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                Weight A_{hoveredCell.queryIdx},{hoveredCell.keyIdx} = {(hoveredCell.weight * 100).toFixed(2)}%
+              </span>
+            </div>
+          ) : (
+            <div className="bg-slate-100 border border-slate-200 rounded p-2 text-xs text-slate-500 font-sans flex items-center justify-between">
+              <span>💡 Hover any matrix dot (circle) to inspect the exact Query-to-Key self-attention probability.</span>
+              <span className="font-mono text-[10px] text-slate-400">Dynamically updated per token stream</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -257,7 +363,7 @@ export const AttentionExplainer: React.FC<AttentionExplainerProps> = ({
       <div className="bg-slate-100 border border-slate-200 rounded p-2.5 text-[11px] font-mono text-slate-600 flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-slate-700">
           <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-          <span>Qwen Self-Attention</span>
+          <span>Qwen Self-Attention Matrix</span>
         </span>
         <span>→</span>
         <span className="text-indigo-700 font-bold">Layer -1 Rep (3584d)</span>
