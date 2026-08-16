@@ -1,0 +1,44 @@
+representation_collection:
+  # Target layers to collect hidden states from
+  # Negative indices count from the end (-1 = last layer), positive from start
+  target_layers: [-1, -2, -4, -6, -8, -12, -16, -20, -24, -28]
+
+  # Pooling method for sequence representations
+  # Options: "last_token", "mean", "max"
+  pooling_method: "last_token"
+
+  # Storage configuration
+  storage:
+    format: "hdf5"  # "hdf5" or "parquet"
+    output_dir: "representations"
+    chunk_size: 1000
+    compression: "gzip"
+    compression_opts: 4
+
+  # Collection settings
+  max_samples_per_domain: 500
+  domains:
+    - "general"
+    - "math"
+    - "code"
+    - "science"
+  batch_size: 4
+
+  # Confidence features to compute
+  compute_entropy: true
+  compute_margin: true
+
+  # DDP / Multi-GPU support
+  use_ddp: true
+
+  # Model configuration (can be overridden by CLI)
+  model:
+    name_or_path: "Qwen/Qwen2.5-7B"
+    revision: "main"
+    torch_dtype: "bfloat16"
+    device_map: "auto"
+    trust_remote_code: false
+    use_cache: true
+
+  # Random seed for reproducibility
+  seed: 42
