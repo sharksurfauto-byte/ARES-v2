@@ -1,0 +1,33 @@
+# Configuration for Phase 4 Reliability Models (GRM & LRM)
+
+grm:
+  input_dim: 3584
+  bottleneck_dim: 128
+  hidden_dim: 256
+  num_domains: 4
+  domains: ["code", "general", "math", "science"]
+  dropout: 0.1
+  use_layer_depth_embedding: true
+  num_layers: 28
+  lr: 0.001
+  weight_decay: 0.0001
+  batch_size: 64
+  epochs: 10
+
+lrm:
+  input_dim: 3584
+  bottleneck_dim: 64
+  hidden_dim: 128
+  dropout: 0.1
+  use_layer_depth_embedding: true
+  num_layers: 28
+  lr: 0.001
+  weight_decay: 0.0001
+  batch_size: 64
+  epochs: 10
+
+manager:
+  default_aggregation: "weighted_sum"
+  weight_global: 0.5
+  weight_local: 0.5
+  confidence_threshold: 0.7
