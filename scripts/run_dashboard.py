@@ -8,6 +8,7 @@ TelemetryCollector from the Phase 1-5 integrated codebase.
 import streamlit as st
 import torch
 import numpy as np
+from typing import Dict
 from pathlib import Path
 
 from ares.inference import ARESInferenceEngine, generate_stream, TelemetryCollector
