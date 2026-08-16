@@ -50,6 +50,9 @@ class DummyCausalLM(nn.Module):
         output = type("CausalLMOutput", (), {"loss": loss, "logits": logits})()
         return output
 
+    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+        return {"input_ids": input_ids, **kwargs}
+
 
 def generate_synthetic_domain_dataset(vocab_size: int = 1000, seq_len: int = 16, samples: int = 100):
     """Generate synthetic token batch dataset."""

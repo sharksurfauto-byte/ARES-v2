@@ -50,6 +50,9 @@ class DummyCausalLM(nn.Module):
         output = type("CausalLMOutput", (), {"loss": loss, "logits": logits})()
         return output
 
+    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+        return {"input_ids": input_ids, **kwargs}
+
 
 @pytest.fixture
 def base_model():
