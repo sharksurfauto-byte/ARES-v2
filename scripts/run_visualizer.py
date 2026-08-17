@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Run in debug mode (untrained probes fallback)")
     parser.add_argument("--confidence_threshold", type=float, default=0.7, help="Confidence threshold R_th")
     parser.add_argument("--domain_certainty_threshold", type=float, default=0.35, help="Domain certainty threshold D_th")
+    parser.add_argument("--load_in_4bit", action="store_true", help="Load model in 4-bit NF4 quantization (VRAM optimization)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
 
@@ -46,6 +47,7 @@ def main():
             model_name=args.model,
             torch_dtype="bfloat16",
             device_map="auto",
+            load_in_4bit=args.load_in_4bit,
             production_mode=production_mode,
             confidence_threshold=args.confidence_threshold,
             domain_certainty_threshold=args.domain_certainty_threshold,
@@ -58,6 +60,7 @@ def main():
             model_name=args.model,
             torch_dtype="bfloat16",
             device_map="auto",
+            load_in_4bit=args.load_in_4bit,
             production_mode=False,
             confidence_threshold=args.confidence_threshold,
             domain_certainty_threshold=args.domain_certainty_threshold,

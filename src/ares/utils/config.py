@@ -22,6 +22,7 @@ class ModelConfig:
     trust_remote_code: bool = False
     use_cache: bool = True
     attn_implementation: str = "eager"
+    load_in_4bit: bool = False
 
 
 @dataclass

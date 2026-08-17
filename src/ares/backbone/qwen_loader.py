@@ -122,7 +122,20 @@ def load_qwen_model(
         "attn_implementation": getattr(config, "attn_implementation", "eager"),
     }
 
-    if resolved_device_map is not None:
+    if getattr(config, "load_in_4bit", False):
+        try:
+            from transformers import BitsAndBytesConfig
+            kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch_dtype,
+                bnb_4bit_use_double_quant=True,
+            )
+            if resolved_device_map is None:
+                kwargs["device_map"] = "auto"
+        except ImportError:
+            raise ImportError("bitsandbytes package is required for load_in_4bit=True. Run `pip install bitsandbytes`.")
+    elif resolved_device_map is not None:
         kwargs["device_map"] = resolved_device_map
 
     model = AutoModelForCausalLM.from_pretrained(
