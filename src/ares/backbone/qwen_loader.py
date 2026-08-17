@@ -104,6 +104,12 @@ def load_qwen_model(
     config = model_config or ModelConfig(name_or_path="Qwen/Qwen2.5-7B")
     torch_dtype = get_torch_dtype(config.torch_dtype)
 
+    # Empty PyTorch CUDA cache before loading to reclaim VRAM from previous runs
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     # Determine sharding strategy
     resolved_device_map = device_map
     if resolved_device_map is None and config.device_map:
