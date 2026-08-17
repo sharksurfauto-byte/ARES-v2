@@ -16,11 +16,17 @@ from ares.utils.environment import get_rank, is_ddp_initialized
 
 
 def get_torch_dtype(dtype_str: str) -> torch.dtype:
-    """Map string representation ('bfloat16', 'float16', 'float32') to torch.dtype."""
+    """Map string representation ('bfloat16', 'float16', 'float32') to torch.dtype.
+
+    Note: Qwen 2.5 models suffer from numerical overflow/NaNs when executed in float16 on GPU.
+    If 'float16' is requested on CUDA devices supporting bfloat16, bfloat16 is automatically used.
+    """
     dtype_str = dtype_str.lower()
     if dtype_str in ("bfloat16", "bf16"):
         return torch.bfloat16
     elif dtype_str in ("float16", "fp16"):
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            return torch.bfloat16
         return torch.float16
     elif dtype_str in ("float32", "fp32"):
         return torch.float32

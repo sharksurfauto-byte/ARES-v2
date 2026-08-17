@@ -33,8 +33,8 @@ def main():
     parser.add_argument(
         "--torch_dtype",
         type=str,
-        default="float16",
-        help="Precision format ('float16', 'bfloat16', 'float32')",
+        default="bfloat16",
+        help="Precision format ('bfloat16', 'float16', 'float32')",
     )
     parser.add_argument(
         "--max_new_tokens",
