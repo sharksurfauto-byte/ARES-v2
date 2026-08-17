@@ -214,6 +214,8 @@ def main():
                         help="Output directory for representations (overrides config)")
     parser.add_argument("--use_real_data", action="store_true",
                         help="Use real HF datasets instead of synthetic")
+    parser.add_argument("--load_in_4bit", action="store_true",
+                        help="Load model in 4-bit NF4 quantization")
     parser.add_argument("--analyze", action="store_true",
                         help="Run analysis after collection")
     parser.add_argument("--seed", type=int, default=42,
@@ -260,6 +262,7 @@ def main():
         device_map=rc_cfg.get("model", {}).get("device_map", "auto"),
         trust_remote_code=rc_cfg.get("model", {}).get("trust_remote_code", False),
         use_cache=rc_cfg.get("model", {}).get("use_cache", True),
+        load_in_4bit=args.load_in_4bit or rc_cfg.get("model", {}).get("load_in_4bit", False),
     )
 
     if is_main_process():

@@ -49,7 +49,8 @@ def main():
     parser = argparse.ArgumentParser(description="ARES V2 - Phase 2 Foundation Adaptation Training")
     parser.add_argument("--config", type=str, default="configs/experiments/smoke_test.yaml", help="Path to experiment config YAML")
     parser.add_argument("--model_name", type=str, default="Qwen/Qwen2.5-7B", help="Hugging Face model ID")
-    parser.add_argument("--torch_dtype", type=str, default="float16", help="Torch precision ('float16', 'bfloat16', 'float32')")
+    parser.add_argument("--torch_dtype", type=str, default="bfloat16", help="Torch precision ('bfloat16', 'float16', 'float32')")
+    parser.add_argument("--load_in_4bit", action="store_true", help="Load base model in 4-bit NF4 quantization for memory optimization")
     parser.add_argument("--epochs", type=int, default=1, help="Training epochs")
     parser.add_argument("--max_steps", type=int, default=50, help="Maximum training steps")
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
@@ -60,10 +61,10 @@ def main():
     if is_main_process():
         print(f"=== ARES V2 Phase 2 Foundation Adaptation ===")
         print(f"Target Model: {args.model_name}")
-        print(f"Precision Dtype: {args.torch_dtype}")
+        print(f"Precision Dtype: {args.torch_dtype} (4bit: {args.load_in_4bit})")
 
     # Load Model & Tokenizer
-    model_cfg = ModelConfig(name_or_path=args.model_name, torch_dtype=args.torch_dtype)
+    model_cfg = ModelConfig(name_or_path=args.model_name, torch_dtype=args.torch_dtype, load_in_4bit=args.load_in_4bit)
     tokenizer = load_qwen_tokenizer(model_cfg)
     base_model = load_qwen_model(model_cfg)
 
